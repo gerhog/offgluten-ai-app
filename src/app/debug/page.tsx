@@ -7,7 +7,7 @@ export default async function DebugPage() {
   let error: string | null = null;
 
   try {
-    const { error: err } = await supabase.rpc("version");
+    const { error: err } = await supabase.from("profiles").select("id").limit(1);
     if (err) {
       error = err.message;
       status = "error";
