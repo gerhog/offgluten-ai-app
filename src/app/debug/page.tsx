@@ -7,10 +7,8 @@ export default async function DebugPage() {
   let error: string | null = null;
 
   try {
-    const { error: err } = await supabase.from("_debug_ping").select("*").limit(1);
-    // Table won't exist — that's fine. Any response means Supabase is reachable.
-    if (err && err.code !== "42P01") {
-      // 42P01 = table does not exist — expected, connection works
+    const { error: err } = await supabase.rpc("version");
+    if (err) {
       error = err.message;
       status = "error";
     }
