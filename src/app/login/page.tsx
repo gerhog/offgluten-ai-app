@@ -73,7 +73,7 @@ export default async function LoginPage({ searchParams }: Props) {
             <p style={{ fontSize: 12, color: "#aaa", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>Войти</p>
             <form action={signIn}>
               <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 4 }}>Почта</label>
-              <input name="email" type="email" required placeholder="вы@example.com" style={field} />
+              <input name="email" type="email" required placeholder="Введите почту" style={field} />
               <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 4 }}>Пароль</label>
               <input name="password" type="password" required placeholder="••••••••" style={{ ...field, marginBottom: 16 }} />
               <button type="submit" style={{ ...btn, background: "#111", color: "#fff" }}>
@@ -88,7 +88,7 @@ export default async function LoginPage({ searchParams }: Props) {
             <p style={{ fontSize: 12, color: "#aaa", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>Создать аккаунт</p>
             <form action={signUp}>
               <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 4 }}>Почта</label>
-              <input name="email" type="email" required placeholder="вы@example.com" style={field} />
+              <input name="email" type="email" required placeholder="Введите почту" style={field} />
               <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 4 }}>Пароль</label>
               <input name="password" type="password" required placeholder="минимум 6 символов" style={{ ...field, marginBottom: 16 }} />
               <button type="submit" style={{ ...btn, background: "#111", color: "#fff" }}>
