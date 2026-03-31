@@ -91,7 +91,7 @@ export default async function LoginPage({ searchParams }: Props) {
               <input name="email" type="email" required placeholder="вы@example.com" style={field} />
               <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 4 }}>Пароль</label>
               <input name="password" type="password" required placeholder="минимум 6 символов" style={{ ...field, marginBottom: 16 }} />
-              <button type="submit" style={{ ...btn, background: "#f5f5f5", color: "#111" }}>
+              <button type="submit" style={{ ...btn, background: "#111", color: "#fff" }}>
                 Зарегистрироваться
               </button>
             </form>
