@@ -18,7 +18,15 @@ export default async function AppPage() {
     .eq("id", user.id)
     .single<Profile>();
 
-  const entitlement = profile?.entitlement_status ?? "free";
+  const entitlement = profile?.entitlement_status ?? "trial";
+
+  const badgeColors: Record<string, { background: string; color: string }> = {
+    trial:   { background: "#f0f0f0", color: "#555" },
+    paid:    { background: "#111",    color: "#fff" },
+    beta:    { background: "#e8f0fe", color: "#1a56db" },
+    blocked: { background: "#fde8e8", color: "#c81e1e" },
+  };
+  const { background, color } = badgeColors[entitlement] ?? badgeColors.trial;
 
   const badge: React.CSSProperties = {
     display: "inline-block",
@@ -26,8 +34,8 @@ export default async function AppPage() {
     borderRadius: 12,
     fontSize: 12,
     fontWeight: 600,
-    background: entitlement === "pro" ? "#111" : "#f0f0f0",
-    color: entitlement === "pro" ? "#fff" : "#555",
+    background,
+    color,
   };
 
   return (
