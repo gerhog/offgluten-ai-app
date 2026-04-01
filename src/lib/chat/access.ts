@@ -14,6 +14,15 @@ export type ChatAccessResult =
   | { allowed: true; profile: Profile }
   | { allowed: false; reason: ChatAccessDeniedReason };
 
+export async function incrementTrialUsage(userId: string, currentCount: number): Promise<boolean> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ trial_messages_used: currentCount + 1 })
+    .eq("id", userId);
+  return !error;
+}
+
 export async function checkChatAccess(): Promise<ChatAccessResult> {
   const supabase = await createClient();
 

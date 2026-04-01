@@ -1,23 +1,63 @@
-import { NextResponse } from "next/server";
-import { checkChatAccess } from "@/lib/chat/access";
+import { NextRequest, NextResponse } from "next/server";
+import { checkChatAccess, incrementTrialUsage } from "@/lib/chat/access";
+
+const TRIAL_LIMIT = 3;
+
+type ChatStatus =
+  | "success"
+  | "unauthenticated"
+  | "profile_missing"
+  | "trial_exhausted"
+  | "blocked"
+  | "invalid_status"
+  | "invalid_request"
+  | "temporary_error";
+
+function deny(status: ChatStatus, httpStatus: number, extra?: Record<string, unknown>) {
+  return NextResponse.json({ status, ...extra }, { status: httpStatus });
+}
 
 // POST /api/chat
-// Entry point for all chat requests.
-// Phase 1: access gate only. n8n integration and message handling come next.
-export async function POST() {
+// Phase 2: accepts message body, access gate, trial increment, stub reply.
+// n8n integration replaces stub reply in the next phase.
+export async function POST(req: NextRequest) {
+  // 1. Parse and validate request body
+  let message: string;
+  try {
+    const body = await req.json();
+    message = typeof body?.message === "string" ? body.message.trim() : "";
+  } catch {
+    return deny("invalid_request", 400);
+  }
+
+  if (!message) {
+    return deny("invalid_request", 400, { error: "message is required" });
+  }
+
+  // 2. Access gate
   const access = await checkChatAccess();
 
   if (!access.allowed) {
-    return NextResponse.json(
-      { allowed: false, reason: access.reason },
-      { status: 403 }
-    );
+    const httpStatus = access.reason === "unauthenticated" ? 401 : 403;
+    return deny(access.reason, httpStatus);
   }
 
-  // Access granted — n8n integration goes here in the next phase
+  // 3. Increment trial counter (trial users only, after validation + access check)
+  const isTrial = access.profile.entitlement_status === "trial";
+  if (isTrial) {
+    const ok = await incrementTrialUsage(access.profile.id, access.profile.trial_messages_used);
+    if (!ok) {
+      return deny("temporary_error", 500);
+    }
+  }
+
+  // 4. Stub success response — replaced by n8n call in next phase
   return NextResponse.json({
-    allowed: true,
-    entitlement_status: access.profile.entitlement_status,
-    trial_messages_used: access.profile.trial_messages_used,
+    status: "success" as ChatStatus,
+    reply: "AI response coming soon.",
+    ...(isTrial && {
+      trial_messages_used: access.profile.trial_messages_used + 1,
+      trial_limit: TRIAL_LIMIT,
+    }),
   });
 }
