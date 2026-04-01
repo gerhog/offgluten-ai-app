@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/types/supabase";
 
-const TRIAL_MESSAGE_LIMIT = 3;
+export const TRIAL_LIMIT = 3;
 
 export type ChatAccessDeniedReason =
   | "unauthenticated"
@@ -14,12 +14,9 @@ export type ChatAccessResult =
   | { allowed: true; profile: Profile }
   | { allowed: false; reason: ChatAccessDeniedReason };
 
-export async function incrementTrialUsage(userId: string, currentCount: number): Promise<boolean> {
+export async function incrementTrialUsage(userId: string): Promise<boolean> {
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("profiles")
-    .update({ trial_messages_used: currentCount + 1 })
-    .eq("id", userId);
+  const { error } = await supabase.rpc("increment_trial_usage", { user_id: userId });
   return !error;
 }
 
@@ -52,7 +49,7 @@ export async function checkChatAccess(): Promise<ChatAccessResult> {
       return { allowed: true, profile };
 
     case "trial":
-      if (profile.trial_messages_used < TRIAL_MESSAGE_LIMIT) {
+      if (profile.trial_messages_used < TRIAL_LIMIT) {
         return { allowed: true, profile };
       }
       return { allowed: false, reason: "trial_exhausted" };

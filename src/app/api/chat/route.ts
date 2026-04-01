@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkChatAccess, incrementTrialUsage } from "@/lib/chat/access";
-
-const TRIAL_LIMIT = 3;
+import { checkChatAccess, incrementTrialUsage, TRIAL_LIMIT } from "@/lib/chat/access";
 
 type ChatStatus =
   | "success"
@@ -45,7 +43,7 @@ export async function POST(req: NextRequest) {
   // 3. Increment trial counter (trial users only, after validation + access check)
   const isTrial = access.profile.entitlement_status === "trial";
   if (isTrial) {
-    const ok = await incrementTrialUsage(access.profile.id, access.profile.trial_messages_used);
+    const ok = await incrementTrialUsage(access.profile.id);
     if (!ok) {
       return deny("temporary_error", 500);
     }
