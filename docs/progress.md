@@ -14,55 +14,45 @@
 
 ### Access model alignment (Prompt #1A + #1B)
 - [x] TypeScript types aligned to MVP v1: `trial | paid | beta | blocked`
-  - `src/types/supabase.ts`: `EntitlementStatus` named type, full `Profile` type
-- [x] Supabase schema updated:
-  - enum: added `blocked` (guest kept at DB level, deprecated)
-  - profiles: added `trial_messages_used int NOT NULL DEFAULT 0 CHECK >= 0`
-  - RPC: `increment_trial_usage(user_id uuid)` — atomic Postgres-side increment
-  - Migrations in `supabase/migrations/`
-- [x] Profile page badge updated to handle all 4 statuses with distinct colors
+- [x] Supabase schema: added `blocked`, `trial_messages_used`, RPC `increment_trial_usage`
+- [x] Profile page badge updated to handle all 4 statuses
 
 ### Chat access gate (Prompt #3A + #3A-fix)
-- [x] `src/lib/chat/access.ts`:
-  - `TRIAL_LIMIT = 3` — single source of truth
-  - `checkChatAccess()` — server-side access decision, all 6 deny reasons
-  - `incrementTrialUsage(userId)` — calls Postgres RPC (atomic, no race condition)
-- [x] `src/app/api/chat/route.ts` — POST /api/chat:
-  - Validates message body (trim, reject empty)
-  - Access gate → increment → stub response
-  - Structured `status` field in all responses
-  - Increment only happens after validation + allowed access
+- [x] `src/lib/chat/access.ts` — `checkChatAccess()`, `incrementTrialUsage()`, `TRIAL_LIMIT=3`
+- [x] `src/app/api/chat/route.ts` — POST /api/chat with validation, access gate, stub reply
+
+### Commits (2026-04-01):
+- e6811f1, 5e270a5, 797ab6b, ec1c456, 937cbb7, d1d53fe
+
+---
+
+## Session: 2026-04-03
+
+### Done:
+- [x] n8n MCP server configured and connected via `npx -y n8n-mcp-server`
+  - Required `N8N_API_URL=https://n8n.offgluten.ru/api/v1` (not just base URL)
+  - Added to `~/.claude.json` project scope
+  - Status: ✓ Connected (verified with `claude mcp list`)
 
 ### In progress:
-- [ ] n8n MCP connection (n8n needs update to v1.88+ for native MCP)
+- [ ] n8n workflow refactor — `OpenClaw edit` (h724YslVLnv7QFNfQtVCT)
+  - Plan fully approved and saved in memory (n8n_workflow_plan.md)
+  - MCP now connected, ready to start refactor in new session
 
-### Next steps:
-- [ ] Update n8n to v1.88+, reconnect MCP
-- [ ] Analyze existing n8n workflow (ID: HdHX6N3gop0lbC87), plan rework
-- [ ] Replace stub reply in `/api/chat` with real n8n webhook call
+### Next steps (immediate):
+- [ ] Start new Claude Code session (MCP tools load at session start)
+- [ ] Run approved refactor of `OpenClaw edit` via MCP
+- [ ] Update `POST /api/chat` to call n8n webhook with new payload
 - [ ] Build chat UI at `/chat`
 - [ ] Add paywall/CTA UI for `trial_exhausted` state
 
-### Key decisions made:
-- Stack: Next.js 15 (App Router) + Supabase + Vercel + n8n
-- Auth: Supabase email/password with email confirmation
-- Entitlement model: `trial | paid | beta | blocked` (guest deprecated)
-- Trial limit: 3 messages, tracked in `profiles.trial_messages_used`
-- Access logic lives in Next.js backend, NOT in n8n, NOT in client
-- All model calls go through n8n orchestration (not directly from app)
-- All UI copy in Russian
-- No UI library — raw inline styles throughout
-- Migrations tracked in `supabase/migrations/`
-
-### n8n workflow analysis (via REST API):
-- Existing workflow "OpenClaw edit backup" (HdHX6N3gop0lbC87) — inactive
-- Has 17 nodes: webhook entry, access policy logic, AI Agent (OpenAI), retrieval (Supabase Vector Store + Embeddings), Simple Memory, format/respond
-- Access policy nodes need removal (logic moved to Next.js)
-- Reusable: AI Agent, memory, vector store, embeddings, format/respond
-
-### Commits this session:
-- e6811f1 — refactor: align app-side entitlement model to MVP v1
-- 5e270a5 — feat: Supabase schema foundation for MVP v1
-- 797ab6b — feat: backend-first chat access gate foundation
-- ec1c456 — feat: /api/chat accepts message body, trial increment, structured response
-- 937cbb7 — fix: atomic trial increment via Postgres RPC, deduplicate TRIAL_LIMIT
+### Key decisions made (2026-04-02/03):
+- n8n MCP: use `npx -y n8n-mcp-server` with `N8N_API_URL=https://n8n.offgluten.ru/api/v1`
+- `OpenClaw edit` refactor plan fully approved — see memory/n8n_workflow_plan.md
+- Workflow to refactor: ID `h724YslVLnv7QFNfQtVCT` (active, 19 nodes)
+- 9 nodes to delete (legacy guest/access), 10 to keep (retrieval core), 8 to add (new orchestration)
+- Input contract: user_id, message, entitlement_status (required) + session_id, memory (optional)
+- Output contract: {ok, status, answer, reason, meta: {route, retrieval, model_tier}}
+- Retrieval quality thresholds: strong (>=2 chunks, similarity>=0.7), weak, empty
+- classify_query: rules-first keyword matching (no LLM call for MVP)
+- medical_sensitive + weak/empty → cautious response, no fallback to cheap model
