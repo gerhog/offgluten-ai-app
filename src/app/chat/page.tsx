@@ -48,13 +48,40 @@ export default function ChatPage() {
       if (data.status === "answered") {
         const reply = data.answer || data.message || "";
         setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
+      } else if (data.status === "limited" && data.reason === "non_domain") {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "error",
+            text: "Я специализируюсь на вопросах о целиакии и безглютеновом питании. Пожалуйста, задайте вопрос по этой теме.",
+          },
+        ]);
+      } else if (data.status === "limited" && data.reason === "weak_retrieval_medical") {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "error",
+            text: "Это медицинский вопрос, требующий точных данных. В базе знаний недостаточно информации для надёжного ответа. Пожалуйста, проконсультируйтесь с врачом.",
+          },
+        ]);
       } else if (data.status === "limited") {
-        const reply = data.answer || data.message || "Ответ недоступен.";
+        const reply = data.answer || data.message || "Ответ ограничен.";
         setMessages((prev) => [...prev, { role: "error", text: reply }]);
       } else if (data.status === "trial_exhausted") {
         setMessages((prev) => [
           ...prev,
-          { role: "error", text: "Пробный период исчерпан. Оформите подписку для продолжения." },
+          {
+            role: "error",
+            text: "Вы использовали все пробные сообщения. Оформите подписку для продолжения.",
+          },
+        ]);
+      } else if (data.status === "temporary_error") {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "error",
+            text: "Сервис временно недоступен. Попробуйте через несколько секунд.",
+          },
         ]);
       } else if (data.status === "unauthenticated") {
         setMessages((prev) => [
