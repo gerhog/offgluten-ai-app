@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkChatAccess, incrementTrialUsage, TRIAL_LIMIT } from "@/lib/chat/access";
+import { checkChatAccess, incrementTrialUsage } from "@/lib/chat/access";
 
 type ChatStatus =
   | "success"
@@ -16,14 +16,15 @@ function deny(status: ChatStatus, httpStatus: number, extra?: Record<string, unk
 }
 
 // POST /api/chat
-// Phase 2: accepts message body, access gate, trial increment, stub reply.
-// n8n integration replaces stub reply in the next phase.
+// Accepts message + optional session_id, runs access gate, calls n8n webhook.
 export async function POST(req: NextRequest) {
   // 1. Parse and validate request body
   let message: string;
+  let sessionId: string | undefined;
   try {
     const body = await req.json();
     message = typeof body?.message === "string" ? body.message.trim() : "";
+    sessionId = typeof body?.session_id === "string" ? body.session_id : undefined;
   } catch {
     return deny("invalid_request", 400);
   }
@@ -49,13 +50,43 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 4. Stub success response — replaced by n8n call in next phase
-  return NextResponse.json({
-    status: "success" as ChatStatus,
-    reply: "AI response coming soon.",
-    ...(isTrial && {
-      trial_messages_used: access.profile.trial_messages_used + 1,
-      trial_limit: TRIAL_LIMIT,
-    }),
-  });
+  // 4. Call n8n webhook
+  const webhookUrl = process.env.N8N_WEBHOOK_URL;
+  if (!webhookUrl) {
+    return deny("temporary_error", 500, { error: "service_misconfigured" });
+  }
+
+  const n8nPayload: Record<string, unknown> = {
+    user_id: access.profile.id,
+    message,
+    entitlement_status: access.profile.entitlement_status,
+  };
+  if (sessionId) {
+    n8nPayload.session_id = sessionId;
+  }
+
+  let n8nResponse: Response;
+  try {
+    n8nResponse = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(n8nPayload),
+      signal: AbortSignal.timeout(25000),
+    });
+  } catch {
+    return deny("temporary_error", 503, { error: "service_unavailable" });
+  }
+
+  if (!n8nResponse.ok) {
+    return deny("temporary_error", 503, { error: "service_unavailable" });
+  }
+
+  let n8nData: unknown;
+  try {
+    n8nData = await n8nResponse.json();
+  } catch {
+    return deny("temporary_error", 503, { error: "service_unavailable" });
+  }
+
+  return NextResponse.json(n8nData);
 }
