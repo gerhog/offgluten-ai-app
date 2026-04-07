@@ -12,7 +12,7 @@ function getOrCreateSessionId(): string {
 }
 
 type MessageEntry = {
-  role: "user" | "assistant" | "error";
+  role: "user" | "assistant" | "error" | "trial_exhausted";
   text: string;
 };
 
@@ -22,10 +22,12 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const isExhausted = messages.some((m) => m.role === "trial_exhausted");
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || isExhausted) return;
     sendMessage(text);
   }
 
@@ -68,13 +70,7 @@ export default function ChatPage() {
         const reply = data.answer || data.message || "Ответ ограничен.";
         setMessages((prev) => [...prev, { role: "error", text: reply }]);
       } else if (data.status === "trial_exhausted") {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "error",
-            text: "Вы использовали все пробные сообщения. Оформите подписку для продолжения.",
-          },
-        ]);
+        setMessages((prev) => [...prev, { role: "trial_exhausted", text: "" }]);
       } else if (data.status === "temporary_error") {
         setMessages((prev) => [
           ...prev,
@@ -101,7 +97,7 @@ export default function ChatPage() {
       ]);
     } finally {
       setLoading(false);
-      inputRef.current?.focus();
+      if (!isExhausted) inputRef.current?.focus();
     }
   }
 
@@ -134,33 +130,78 @@ export default function ChatPage() {
             Задайте вопрос о целиакии или безглютеновом питании.
           </p>
         )}
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            style={{
-              alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
-              maxWidth: "80%",
-              padding: "10px 14px",
-              borderRadius: 12,
-              fontSize: 14,
-              lineHeight: 1.6,
-              background:
-                msg.role === "user"
-                  ? "#1a1a1a"
-                  : msg.role === "error"
-                  ? "#fff3cd"
-                  : "#f0f0f0",
-              color:
-                msg.role === "user"
-                  ? "#fff"
-                  : msg.role === "error"
-                  ? "#856404"
-                  : "#1a1a1a",
-            }}
-          >
-            {msg.text}
-          </div>
-        ))}
+        {messages.map((msg, i) => {
+          if (msg.role === "trial_exhausted") {
+            return (
+              <div
+                key={i}
+                style={{
+                  alignSelf: "flex-start",
+                  maxWidth: "80%",
+                  padding: "16px 20px",
+                  borderRadius: 12,
+                  border: "1px solid #e0e0e0",
+                  background: "#fff",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#1a1a1a" }}>
+                  Пробный период закончился
+                </div>
+                <div style={{ fontSize: 13, color: "#555", lineHeight: 1.5 }}>
+                  Вы использовали 3 пробных сообщения. Оформите доступ, чтобы продолжить.
+                </div>
+                <a
+                  href="/app"
+                  style={{
+                    display: "inline-block",
+                    marginTop: 2,
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    background: "#1a1a1a",
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    textDecoration: "none",
+                    alignSelf: "flex-start",
+                  }}
+                >
+                  Получить доступ
+                </a>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              key={i}
+              style={{
+                alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+                maxWidth: "80%",
+                padding: "10px 14px",
+                borderRadius: 12,
+                fontSize: 14,
+                lineHeight: 1.6,
+                background:
+                  msg.role === "user"
+                    ? "#1a1a1a"
+                    : msg.role === "error"
+                    ? "#fff3cd"
+                    : "#f0f0f0",
+                color:
+                  msg.role === "user"
+                    ? "#fff"
+                    : msg.role === "error"
+                    ? "#856404"
+                    : "#1a1a1a",
+              }}
+            >
+              {msg.text}
+            </div>
+          );
+        })}
         {loading && (
           <div
             style={{
@@ -182,8 +223,8 @@ export default function ChatPage() {
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Введите вопрос..."
-          disabled={loading}
+          placeholder={isExhausted ? "Пробный период закончился" : "Введите вопрос..."}
+          disabled={loading || isExhausted}
           style={{
             flex: 1,
             padding: "10px 14px",
@@ -191,11 +232,13 @@ export default function ChatPage() {
             border: "1px solid #ddd",
             fontSize: 14,
             outline: "none",
+            background: isExhausted ? "#f9f9f9" : "#fff",
+            color: isExhausted ? "#aaa" : "#1a1a1a",
           }}
         />
         <button
           type="submit"
-          disabled={loading || !input.trim()}
+          disabled={loading || !input.trim() || isExhausted}
           style={{
             padding: "10px 20px",
             borderRadius: 8,
@@ -203,8 +246,8 @@ export default function ChatPage() {
             background: "#1a1a1a",
             color: "#fff",
             fontSize: 14,
-            cursor: loading ? "wait" : "pointer",
-            opacity: loading || !input.trim() ? 0.5 : 1,
+            cursor: loading || isExhausted ? "default" : "pointer",
+            opacity: loading || !input.trim() || isExhausted ? 0.4 : 1,
           }}
         >
           Отправить
