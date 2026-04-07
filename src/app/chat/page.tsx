@@ -11,10 +11,129 @@ function getOrCreateSessionId(): string {
   return id;
 }
 
-type MessageEntry = {
-  role: "user" | "assistant" | "error" | "trial_exhausted";
-  text: string;
+type SystemSubtype =
+  | "non_domain"
+  | "weak_retrieval_medical"
+  | "temporary_error"
+  | "unauthenticated";
+
+type MessageEntry =
+  | { role: "user"; text: string }
+  | { role: "assistant"; text: string }
+  | { role: "system"; subtype: SystemSubtype; text: string }
+  | { role: "trial_exhausted" };
+
+const SYSTEM_LABELS: Record<SystemSubtype, string> = {
+  non_domain: "Вне специализации",
+  weak_retrieval_medical: "Медицинский вопрос",
+  temporary_error: "Сервис недоступен",
+  unauthenticated: "Сессия истекла",
 };
+
+const SYSTEM_LABEL_COLORS: Record<SystemSubtype, string> = {
+  non_domain: "#6b7280",
+  weak_retrieval_medical: "#b45309",
+  temporary_error: "#dc2626",
+  unauthenticated: "#6b7280",
+};
+
+const EXAMPLE_QUESTIONS = [
+  "Что такое целиакия?",
+  "Можно ли есть овёс?",
+  "Какие продукты содержат скрытый глютен?",
+];
+
+function SystemCard({ subtype, text }: { subtype: SystemSubtype; text: string }) {
+  return (
+    <div
+      style={{
+        alignSelf: "flex-start",
+        maxWidth: "80%",
+        padding: "14px 18px",
+        borderRadius: 12,
+        border: "1px solid #e8e8e8",
+        background: "#fff",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          color: SYSTEM_LABEL_COLORS[subtype],
+        }}
+      >
+        {SYSTEM_LABELS[subtype]}
+      </div>
+      <div style={{ fontSize: 14, color: "#374151", lineHeight: 1.55 }}>{text}</div>
+      {subtype === "unauthenticated" && (
+        <a
+          href="/login"
+          style={{
+            marginTop: 4,
+            display: "inline-block",
+            padding: "7px 14px",
+            borderRadius: 8,
+            background: "#1a1a1a",
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 500,
+            textDecoration: "none",
+            alignSelf: "flex-start",
+          }}
+        >
+          Войти снова
+        </a>
+      )}
+    </div>
+  );
+}
+
+function TrialExhaustedCard() {
+  return (
+    <div
+      style={{
+        alignSelf: "flex-start",
+        maxWidth: "80%",
+        padding: "16px 20px",
+        borderRadius: 12,
+        border: "1px solid #e0e0e0",
+        background: "#fff",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <div style={{ fontSize: 15, fontWeight: 600, color: "#1a1a1a" }}>
+        Пробный период закончился
+      </div>
+      <div style={{ fontSize: 13, color: "#555", lineHeight: 1.5 }}>
+        Вы использовали 3 пробных сообщения. Оформите доступ, чтобы продолжить.
+      </div>
+      <a
+        href="/app"
+        style={{
+          display: "inline-block",
+          marginTop: 2,
+          padding: "8px 16px",
+          borderRadius: 8,
+          background: "#1a1a1a",
+          color: "#fff",
+          fontSize: 13,
+          fontWeight: 500,
+          textDecoration: "none",
+          alignSelf: "flex-start",
+        }}
+      >
+        Получить доступ
+      </a>
+    </div>
+  );
+}
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<MessageEntry[]>([]);
@@ -29,6 +148,10 @@ export default function ChatPage() {
     const text = input.trim();
     if (!text || loading || isExhausted) return;
     sendMessage(text);
+  }
+
+  function pushSystem(subtype: SystemSubtype, text: string) {
+    setMessages((prev) => [...prev, { role: "system", subtype, text }]);
   }
 
   async function sendMessage(text: string) {
@@ -51,50 +174,32 @@ export default function ChatPage() {
         const reply = data.answer || data.message || "";
         setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
       } else if (data.status === "limited" && data.reason === "non_domain") {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "error",
-            text: "Я специализируюсь на вопросах о целиакии и безглютеновом питании. Пожалуйста, задайте вопрос по этой теме.",
-          },
-        ]);
+        pushSystem(
+          "non_domain",
+          "Я специализируюсь на вопросах о целиакии и безглютеновом питании. Пожалуйста, задайте вопрос по этой теме."
+        );
       } else if (data.status === "limited" && data.reason === "weak_retrieval_medical") {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "error",
-            text: "Это медицинский вопрос, требующий точных данных. В базе знаний недостаточно информации для надёжного ответа. Пожалуйста, проконсультируйтесь с врачом.",
-          },
-        ]);
+        pushSystem(
+          "weak_retrieval_medical",
+          "Это медицинский вопрос, требующий точных данных. В базе знаний недостаточно информации для надёжного ответа. Пожалуйста, проконсультируйтесь с врачом."
+        );
       } else if (data.status === "limited") {
         const reply = data.answer || data.message || "Ответ ограничен.";
-        setMessages((prev) => [...prev, { role: "error", text: reply }]);
+        setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
       } else if (data.status === "trial_exhausted") {
-        setMessages((prev) => [...prev, { role: "trial_exhausted", text: "" }]);
+        setMessages((prev) => [...prev, { role: "trial_exhausted" }]);
       } else if (data.status === "temporary_error") {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "error",
-            text: "Сервис временно недоступен. Попробуйте через несколько секунд.",
-          },
-        ]);
+        pushSystem(
+          "temporary_error",
+          "Сервис временно недоступен. Пожалуйста, попробуйте через несколько секунд."
+        );
       } else if (data.status === "unauthenticated") {
-        setMessages((prev) => [
-          ...prev,
-          { role: "error", text: "Сессия истекла. Пожалуйста, войдите снова." },
-        ]);
+        pushSystem("unauthenticated", "Сессия истекла. Войдите снова, чтобы продолжить.");
       } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: "error", text: "Что-то пошло не так. Попробуйте ещё раз." },
-        ]);
+        pushSystem("temporary_error", "Что-то пошло не так. Попробуйте ещё раз.");
       }
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "error", text: "Ошибка соединения. Попробуйте ещё раз." },
-      ]);
+      pushSystem("temporary_error", "Ошибка соединения. Попробуйте ещё раз.");
     } finally {
       setLoading(false);
       if (!isExhausted) inputRef.current?.focus();
@@ -126,54 +231,44 @@ export default function ChatPage() {
         }}
       >
         {messages.length === 0 && (
-          <p style={{ color: "#888", fontSize: 14 }}>
-            Задайте вопрос о целиакии или безглютеновом питании.
-          </p>
-        )}
-        {messages.map((msg, i) => {
-          if (msg.role === "trial_exhausted") {
-            return (
-              <div
-                key={i}
-                style={{
-                  alignSelf: "flex-start",
-                  maxWidth: "80%",
-                  padding: "16px 20px",
-                  borderRadius: 12,
-                  border: "1px solid #e0e0e0",
-                  background: "#fff",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 10,
-                }}
-              >
-                <div style={{ fontSize: 15, fontWeight: 600, color: "#1a1a1a" }}>
-                  Пробный период закончился
-                </div>
-                <div style={{ fontSize: 13, color: "#555", lineHeight: 1.5 }}>
-                  Вы использовали 3 пробных сообщения. Оформите доступ, чтобы продолжить.
-                </div>
-                <a
-                  href="/app"
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <p style={{ color: "#888", fontSize: 14, margin: 0 }}>
+              Задайте вопрос о целиакии или безглютеновом питании.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {EXAMPLE_QUESTIONS.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => {
+                    setInput(q);
+                    inputRef.current?.focus();
+                  }}
                   style={{
-                    display: "inline-block",
-                    marginTop: 2,
-                    padding: "8px 16px",
-                    borderRadius: 8,
-                    background: "#1a1a1a",
-                    color: "#fff",
-                    fontSize: 13,
-                    fontWeight: 500,
-                    textDecoration: "none",
                     alignSelf: "flex-start",
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #e0e0e0",
+                    background: "#fafafa",
+                    color: "#374151",
+                    fontSize: 13,
+                    cursor: "pointer",
+                    textAlign: "left",
                   }}
                 >
-                  Получить доступ
-                </a>
-              </div>
-            );
-          }
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
+        {messages.map((msg, i) => {
+          if (msg.role === "trial_exhausted") {
+            return <TrialExhaustedCard key={i} />;
+          }
+          if (msg.role === "system") {
+            return <SystemCard key={i} subtype={msg.subtype} text={msg.text} />;
+          }
           return (
             <div
               key={i}
@@ -184,24 +279,15 @@ export default function ChatPage() {
                 borderRadius: 12,
                 fontSize: 14,
                 lineHeight: 1.6,
-                background:
-                  msg.role === "user"
-                    ? "#1a1a1a"
-                    : msg.role === "error"
-                    ? "#fff3cd"
-                    : "#f0f0f0",
-                color:
-                  msg.role === "user"
-                    ? "#fff"
-                    : msg.role === "error"
-                    ? "#856404"
-                    : "#1a1a1a",
+                background: msg.role === "user" ? "#1a1a1a" : "#f0f0f0",
+                color: msg.role === "user" ? "#fff" : "#1a1a1a",
               }}
             >
               {msg.text}
             </div>
           );
         })}
+
         {loading && (
           <div
             style={{
