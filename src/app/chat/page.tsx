@@ -115,7 +115,7 @@ function TrialExhaustedCard() {
         Вы использовали 3 пробных сообщения. Оформите доступ, чтобы продолжить.
       </div>
       <a
-        href="/app"
+        href="/upgrade"
         style={{
           display: "inline-block",
           marginTop: 2,

@@ -28,7 +28,10 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isProtected = pathname.startsWith("/app") || pathname.startsWith("/chat");
+  const isProtected =
+    pathname.startsWith("/app") ||
+    pathname.startsWith("/chat") ||
+    pathname.startsWith("/upgrade");
 
   if (isProtected && !user) {
     return NextResponse.redirect(new URL("/login", request.url));
@@ -38,5 +41,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*", "/chat/:path*"],
+  matcher: ["/app/:path*", "/chat/:path*", "/upgrade/:path*"],
 };
