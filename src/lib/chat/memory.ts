@@ -1,6 +1,27 @@
 import { createClient } from "@/lib/supabase/server";
 import type { MemoryFact } from "@/types/supabase";
 
+// Memory update fires after this many answered messages for paid/beta users.
+export const MEMORY_UPDATE_THRESHOLD = 5;
+
+// Returns true when the answered counter has reached the update threshold.
+export function isMemoryUpdateDue(answeredSinceLastUpdate: number): boolean {
+  return answeredSinceLastUpdate >= MEMORY_UPDATE_THRESHOLD;
+}
+
+// Atomically increments the answered counter for a paid/beta user.
+// Initializes the user_memory row if it does not yet exist.
+// Designed for fire-and-forget use — logs errors, does not throw.
+export async function incrementAnsweredCounter(userId: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("increment_answered_counter", {
+    p_user_id: userId,
+  });
+  if (error) {
+    console.error("[memory] incrementAnsweredCounter failed:", error.message);
+  }
+}
+
 export type UserMemoryPayload = {
   summary: string | null;
   facts: MemoryFact[] | null;

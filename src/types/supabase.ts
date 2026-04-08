@@ -27,6 +27,8 @@ export type UserMemory = {
   user_id: string;
   summary: string | null;
   facts: MemoryFact[] | null;
+  answered_since_last_memory_update: number;
+  last_memory_update_at: string | null;
   created_at: string;
   updated_at: string;
 };

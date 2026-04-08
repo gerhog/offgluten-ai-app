@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkChatAccess, incrementTrialUsage } from "@/lib/chat/access";
-import { loadUserMemory } from "@/lib/chat/memory";
+import { loadUserMemory, incrementAnsweredCounter } from "@/lib/chat/memory";
 
 type ChatStatus =
   | "success"
@@ -96,6 +96,12 @@ export async function POST(req: NextRequest) {
     n8nData = await n8nResponse.json();
   } catch {
     return deny("temporary_error", 503, { error: "service_unavailable" });
+  }
+
+  // 6. Fire-and-forget answered counter increment (paid/beta only).
+  // Does not block the response. Errors are logged inside the helper.
+  if (isDurable && (n8nData as Record<string, unknown>).status === "answered") {
+    incrementAnsweredCounter(access.profile.id);
   }
 
   return NextResponse.json(n8nData);
