@@ -22,6 +22,56 @@ export async function incrementAnsweredCounter(userId: string): Promise<void> {
   }
 }
 
+// The full bookkeeping state for a paid/beta user.
+// rowExists: false means no row at all — counter is 0, no memory.
+// hasMemoryContent: true only when summary or facts carry real content.
+//   A bookkeeping-only row (created by incrementAnsweredCounter) will have
+//   rowExists: true but hasMemoryContent: false.
+export type MemoryBookkeepingState = {
+  rowExists: boolean;
+  answeredSinceLastUpdate: number;
+  lastMemoryUpdateAt: string | null;
+  hasMemoryContent: boolean;
+  updateDue: boolean;
+};
+
+// Reads the current memory bookkeeping state for a user.
+// Safe to call even when no row exists.
+export async function readMemoryBookkeepingState(
+  userId: string
+): Promise<MemoryBookkeepingState> {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("user_memory")
+    .select("summary, facts, answered_since_last_memory_update, last_memory_update_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!data) {
+    return {
+      rowExists: false,
+      answeredSinceLastUpdate: 0,
+      lastMemoryUpdateAt: null,
+      hasMemoryContent: false,
+      updateDue: false,
+    };
+  }
+
+  const answeredSinceLastUpdate = data.answered_since_last_memory_update ?? 0;
+  const hasMemoryContent =
+    (typeof data.summary === "string" && data.summary.trim().length > 0) ||
+    (Array.isArray(data.facts) && data.facts.length > 0);
+
+  return {
+    rowExists: true,
+    answeredSinceLastUpdate,
+    lastMemoryUpdateAt: data.last_memory_update_at ?? null,
+    hasMemoryContent,
+    updateDue: isMemoryUpdateDue(answeredSinceLastUpdate),
+  };
+}
+
 export type UserMemoryPayload = {
   summary: string | null;
   facts: MemoryFact[] | null;
