@@ -42,20 +42,27 @@ export async function readMemoryBookkeepingState(
 ): Promise<MemoryBookkeepingState> {
   const supabase = await createClient();
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("user_memory")
     .select("summary, facts, answered_since_last_memory_update, last_memory_update_at")
     .eq("user_id", userId)
     .maybeSingle();
 
+  const noRowState: MemoryBookkeepingState = {
+    rowExists: false,
+    answeredSinceLastUpdate: 0,
+    lastMemoryUpdateAt: null,
+    hasMemoryContent: false,
+    updateDue: false,
+  };
+
+  if (error) {
+    console.error("[memory] readMemoryBookkeepingState failed:", error.message);
+    return noRowState;
+  }
+
   if (!data) {
-    return {
-      rowExists: false,
-      answeredSinceLastUpdate: 0,
-      lastMemoryUpdateAt: null,
-      hasMemoryContent: false,
-      updateDue: false,
-    };
+    return noRowState;
   }
 
   const answeredSinceLastUpdate = data.answered_since_last_memory_update ?? 0;
@@ -97,16 +104,21 @@ export async function upsertUserMemory(
   return !error;
 }
 
-// Reads durable memory for a user. Returns null if no row exists — callers
-// must treat null as "no memory yet" and continue normally.
+// Reads durable memory for a user. Returns null if no row exists or on error —
+// callers must treat null as "no memory yet" and continue normally.
 export async function loadUserMemory(userId: string): Promise<UserMemoryPayload | null> {
   const supabase = await createClient();
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("user_memory")
     .select("summary, facts")
     .eq("user_id", userId)
     .maybeSingle();
+
+  if (error) {
+    console.error("[memory] loadUserMemory failed:", error.message);
+    return null;
+  }
 
   if (!data) return null;
 
