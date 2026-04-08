@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkChatAccess, incrementTrialUsage } from "@/lib/chat/access";
+import { loadUserMemory } from "@/lib/chat/memory";
 
 type ChatStatus =
   | "success"
@@ -50,7 +51,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 4. Call n8n webhook
+  // 4. Load durable memory (paid / beta only; missing row is not an error)
+  const isDurable =
+    access.profile.entitlement_status === "paid" ||
+    access.profile.entitlement_status === "beta";
+  const memory = isDurable ? await loadUserMemory(access.profile.id) : null;
+
+  // 5. Call n8n webhook
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
   if (!webhookUrl) {
     return deny("temporary_error", 500, { error: "service_misconfigured" });
@@ -63,6 +70,9 @@ export async function POST(req: NextRequest) {
   };
   if (sessionId) {
     n8nPayload.session_id = sessionId;
+  }
+  if (memory) {
+    n8nPayload.memory = memory;
   }
 
   let n8nResponse: Response;
