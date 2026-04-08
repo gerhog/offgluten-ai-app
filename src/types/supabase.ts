@@ -4,7 +4,7 @@ export type EntitlementStatus = "trial" | "paid" | "beta" | "blocked";
 export type MemoryFactKey =
   | "diagnosed_with"  // confirmed diagnosis (e.g. "celiac disease", "gluten sensitivity")
   | "avoids"          // ingredients/foods the user avoids (e.g. "oats", "barley")
-  | "tolerates"       // foods confirmed safe for this user (e.g. "certified gluten-free oats")
+  | "includes"        // foods/products the user consistently includes in their diet (e.g. "certified gluten-free oats")
   | "prefers"         // dietary lifestyle preferences (e.g. "vegan", "lactose-free")
   | "diet_type";      // overall diet pattern (e.g. "strict gluten-free", "low-FODMAP")
 
