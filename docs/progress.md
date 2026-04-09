@@ -26,6 +26,43 @@
 
 ---
 
+## Session: 2026-04-09
+
+### Done — end-to-end durable memory update path (approved plan, fully implemented):
+
+- [x] Patched `docs/memory-update-spec-v1.md` — добавлены Architecture section и counter-reset rule (e36655f)
+- [x] Upgraded n8n draft workflow `GfCl6woJZWTwjFr8` (Offgluten Memory Update) via REST API:
+  - Node 7: Call OpenAI (gpt-4.1-mini, json_object response_format, credential `OpenAi account`)
+  - Node 9: Parse Model Output (validate allowed keys/categories, max 7 facts, fallback to existing memory)
+  - Success response: strict `{ summary, facts }` only
+  - Workflow remains inactive (draft)
+- [x] `src/lib/chat/memory.ts` — добавлены `resetMemoryUpdateCounter` и `loadUserMemoryForChat`
+- [x] `src/app/api/internal/memory-update/route.ts` — новый internal endpoint:
+  - Принимает: user_id, last_user_message, last_assistant_answer
+  - Загружает текущую память из Supabase, вызывает n8n, валидирует ответ, пишет обратно
+  - Сбрасывает counter только при успешной записи
+- [x] `src/app/api/chat/route.ts` — fire-and-forget trigger:
+  - Только paid/beta + answered + updateDue + lastAnswer непустой
+  - `last_assistant_answer` берётся из `n8nData.answer || n8nData.message`
+  - URL строится через `new URL("/api/internal/memory-update", req.url).href`
+- [x] `N8N_MEMORY_UPDATE_WEBHOOK_URL` добавлен в Vercel (production + preview, encrypted)
+- [x] Redeploy задеплоен (e3c6d54 → dpl_DZky7LhbKSCg8GjSLi3PifTZtJTi, READY)
+- [x] `docs/memory-update-n8n-workflow.md` — документация n8n воркфлоу
+
+### Commits (2026-04-09):
+- e36655f — docs: patch memory-update-spec
+- 2f4af53 — feat: POST /api/internal/memory-update + resetMemoryUpdateCounter
+- d34d4e5 — feat: wire memory-update trigger in /api/chat
+- e3c6d54 — chore: trigger redeploy for N8N_MEMORY_UPDATE_WEBHOOK_URL env
+
+### Not yet done:
+- [ ] Активировать n8n воркфлоу `GfCl6woJZWTwjFr8` (сейчас inactive/draft)
+- [ ] Smoke-test end-to-end: paid user → 5 answered messages → memory update fires
+- [ ] Paid soft-limit engine (20/5min, 30-50/day)
+- [ ] Real billing integration
+
+---
+
 ## Session: 2026-04-03
 
 ### Done:
