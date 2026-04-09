@@ -1,7 +1,7 @@
 # Durable Memory Update Spec — v1
 
 ## Status
-Draft. Drives the next implementation step (memory-update workflow + trigger).
+Approved. Drives the next implementation step (memory-update workflow + trigger).
 
 ---
 
@@ -20,6 +20,18 @@ Draft. Drives the next implementation step (memory-update workflow + trigger).
 - Counter tracks answered messages per user (not total requests — access-denied and limited responses do not count).
 - Trigger fires at the app layer, not inside the main chat workflow.
 - A failed memory update must not block or degrade the chat response.
+- Counter resets to 0 **only on successful** memory write-back. On failure, the counter is not reset — the next answered message brings the trigger closer rather than resetting progress.
+
+---
+
+## Architecture
+
+The memory-update side path runs via a dedicated internal endpoint (`POST /api/internal/memory-update`).
+
+- `/api/chat` fires-and-forgets a fetch to this internal endpoint after an `answered` response when `updateDue` is true.
+- The internal endpoint is responsible for: loading current memory from Supabase, calling the n8n memory-update workflow, validating the response, writing back to Supabase (app owns the write), and resetting the counter.
+- `/api/chat` does **not** call the n8n memory-update workflow directly.
+- The internal endpoint is not exposed to clients.
 
 ---
 
