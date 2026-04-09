@@ -145,3 +145,36 @@ export async function loadUserMemory(userId: string): Promise<UserMemoryPayload 
     facts: (data.facts as MemoryFact[] | null) ?? null,
   };
 }
+
+// Combined read used by /api/chat: returns memory payload (for n8n) and whether an update is due.
+// Single DB query — avoids two separate roundtrips.
+// On error or missing row: memory is null, updateDue is false.
+export async function loadUserMemoryForChat(userId: string): Promise<{
+  memory: UserMemoryPayload | null;
+  updateDue: boolean;
+}> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("user_memory")
+    .select("summary, facts, answered_since_last_memory_update")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[memory] loadUserMemoryForChat failed:", error.message);
+    return { memory: null, updateDue: false };
+  }
+
+  if (!data) {
+    return { memory: null, updateDue: false };
+  }
+
+  const memory: UserMemoryPayload = {
+    summary: data.summary ?? null,
+    facts: (data.facts as MemoryFact[] | null) ?? null,
+  };
+  const updateDue = isMemoryUpdateDue(data.answered_since_last_memory_update ?? 0);
+
+  return { memory, updateDue };
+}

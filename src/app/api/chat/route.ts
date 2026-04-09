@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkChatAccess, incrementTrialUsage } from "@/lib/chat/access";
-import { loadUserMemory, incrementAnsweredCounter } from "@/lib/chat/memory";
+import { loadUserMemoryForChat, incrementAnsweredCounter } from "@/lib/chat/memory";
 
 type ChatStatus =
   | "success"
@@ -51,11 +51,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 4. Load durable memory (paid / beta only; missing row is not an error)
+  // 4. Load durable memory + check update due (paid / beta only; missing row is not an error)
   const isDurable =
     access.profile.entitlement_status === "paid" ||
     access.profile.entitlement_status === "beta";
-  const memory = isDurable ? await loadUserMemory(access.profile.id) : null;
+  const { memory, updateDue } = isDurable
+    ? await loadUserMemoryForChat(access.profile.id)
+    : { memory: null, updateDue: false };
 
   // 5. Call n8n webhook
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
@@ -98,10 +100,33 @@ export async function POST(req: NextRequest) {
     return deny("temporary_error", 503, { error: "service_unavailable" });
   }
 
-  // 6. Fire-and-forget answered counter increment (paid/beta only).
-  // Does not block the response. Errors are logged inside the helper.
-  if (isDurable && (n8nData as Record<string, unknown>).status === "answered") {
+  // 6. Post-response side effects (paid/beta, answered only — fire-and-forget, do not block).
+  const n8n = n8nData as Record<string, unknown>;
+  if (isDurable && n8n.status === "answered") {
+    // Increment the answered counter (async, does not block).
     incrementAnsweredCounter(access.profile.id);
+
+    // Trigger memory update when due. Extract assistant answer from the n8n response.
+    if (updateDue) {
+      const lastAnswer =
+        (typeof n8n.answer === "string" ? n8n.answer : "") ||
+        (typeof n8n.message === "string" ? n8n.message : "");
+
+      if (lastAnswer.trim()) {
+        const internalUrl = new URL("/api/internal/memory-update", req.url).href;
+        fetch(internalUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: access.profile.id,
+            last_user_message: message,
+            last_assistant_answer: lastAnswer.trim(),
+          }),
+        }).catch((e) =>
+          console.error("[chat] memory-update trigger failed:", e)
+        );
+      }
+    }
   }
 
   return NextResponse.json(n8nData);
