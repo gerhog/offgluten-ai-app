@@ -104,6 +104,24 @@ export async function upsertUserMemory(
   return !error;
 }
 
+// Resets the answered counter and stamps last_memory_update_at after a successful memory write.
+// Only call after upsertUserMemory has succeeded.
+// Returns true on success. A failure here is non-critical — memory was already written.
+export async function resetMemoryUpdateCounter(userId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("user_memory")
+    .update({
+      answered_since_last_memory_update: 0,
+      last_memory_update_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
+  if (error) {
+    console.error("[memory] resetMemoryUpdateCounter failed:", error.message);
+  }
+  return !error;
+}
+
 // Reads durable memory for a user. Returns null if no row exists or on error —
 // callers must treat null as "no memory yet" and continue normally.
 export async function loadUserMemory(userId: string): Promise<UserMemoryPayload | null> {
