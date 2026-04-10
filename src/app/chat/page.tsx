@@ -161,11 +161,22 @@ export default function ChatPage() {
 
     const sessionId = getOrCreateSessionId();
 
+    // Collect recent conversational turns for memory extraction context.
+    // Uses messages from closure (state before current message) — current message
+    // is already in the `message` field. System and trial_exhausted entries are excluded.
+    const recentTurns = messages
+      .filter(
+        (m): m is { role: "user" | "assistant"; text: string } =>
+          (m.role === "user" || m.role === "assistant") && "text" in m
+      )
+      .slice(-10) // up to 5 exchanges (10 messages)
+      .map((m) => ({ role: m.role, text: m.text.slice(0, 500) }));
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, session_id: sessionId }),
+        body: JSON.stringify({ message: text, session_id: sessionId, recent_turns: recentTurns }),
       });
 
       const data = await res.json();

@@ -22,10 +22,24 @@ export async function POST(req: NextRequest) {
   // 1. Parse and validate request body
   let message: string;
   let sessionId: string | undefined;
+  let recentTurns: Array<{ role: string; text: string }> = [];
   try {
     const body = await req.json();
     message = typeof body?.message === "string" ? body.message.trim() : "";
     sessionId = typeof body?.session_id === "string" ? body.session_id : undefined;
+    // Sanitize recent_turns: only user/assistant roles, plain text, hard limits.
+    // Never used for access or billing — memory context only.
+    if (Array.isArray(body?.recent_turns)) {
+      recentTurns = (body.recent_turns as unknown[])
+        .filter((t): t is { role: string; text: string } => {
+          if (!t || typeof t !== "object") return false;
+          const r = (t as Record<string, unknown>).role;
+          const x = (t as Record<string, unknown>).text;
+          return (r === "user" || r === "assistant") && typeof x === "string" && x.trim().length > 0;
+        })
+        .slice(-10)
+        .map((t) => ({ role: t.role, text: t.text.slice(0, 500) }));
+    }
   } catch {
     return deny("invalid_request", 400);
   }
@@ -121,6 +135,7 @@ export async function POST(req: NextRequest) {
             user_id: access.profile.id,
             last_user_message: message,
             last_assistant_answer: lastAnswer.trim(),
+            recent_turns: recentTurns,
           }),
         }).catch((e) =>
           console.error("[chat] memory-update trigger failed:", e)

@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
   let userId: string;
   let lastUserMessage: string;
   let lastAssistantAnswer: string;
+  let recentTurns: Array<{ role: string; text: string }> = [];
 
   try {
     const body = await req.json();
@@ -108,6 +109,17 @@ export async function POST(req: NextRequest) {
       typeof body?.last_assistant_answer === "string"
         ? body.last_assistant_answer.trim()
         : "";
+    if (Array.isArray(body?.recent_turns)) {
+      recentTurns = (body.recent_turns as unknown[])
+        .filter((t): t is { role: string; text: string } => {
+          if (!t || typeof t !== "object") return false;
+          const r = (t as Record<string, unknown>).role;
+          const x = (t as Record<string, unknown>).text;
+          return (r === "user" || r === "assistant") && typeof x === "string" && x.trim().length > 0;
+        })
+        .slice(-10)
+        .map((t) => ({ role: t.role, text: t.text.slice(0, 500) }));
+    }
   } catch {
     return NextResponse.json({ ok: false, error: "invalid_request" }, { status: 400 });
   }
@@ -147,6 +159,7 @@ export async function POST(req: NextRequest) {
           user_message: lastUserMessage,
           assistant_answer: lastAssistantAnswer,
         },
+        recent_turns: recentTurns,
         existing_memory: {
           summary: currentSummary,
           facts: currentFacts,
