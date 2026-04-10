@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
           const x = (t as Record<string, unknown>).text;
           return (r === "user" || r === "assistant") && typeof x === "string" && x.trim().length > 0;
         })
-        .slice(-10)
+        .slice(-5)
         .map((t) => ({ role: t.role, text: t.text.slice(0, 500) }));
     }
   } catch {

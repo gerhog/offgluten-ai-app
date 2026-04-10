@@ -169,7 +169,7 @@ export default function ChatPage() {
         (m): m is { role: "user" | "assistant"; text: string } =>
           (m.role === "user" || m.role === "assistant") && "text" in m
       )
-      .slice(-10) // up to 5 exchanges (10 messages)
+      .slice(-5) // up to ~2-3 exchanges
       .map((m) => ({ role: m.role, text: m.text.slice(0, 500) }));
 
     try {
