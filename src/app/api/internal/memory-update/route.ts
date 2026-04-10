@@ -8,6 +8,40 @@ const ALLOWED_KEYS = new Set<string>(["diagnosed_with", "avoids", "includes", "p
 const MAX_FACTS = 7;
 const MAX_SUMMARY = 300;
 
+// Keys that can hold multiple distinct values (e.g. avoids: oats AND avoids: barley).
+// All other keys are treated as single-value and replaced by key on update.
+const MULTI_VALUE_KEYS = new Set<string>(["avoids", "includes"]);
+
+// Merges incoming facts from n8n into the existing fact list.
+// Rules:
+//   - Multi-value keys (avoids, includes): add if (key, value) pair not already present.
+//   - Single-value keys (diagnosed_with, prefers, diet_type): replace the existing fact
+//     with the same key; add if none exists.
+//   - Existing facts always keep their slots; new facts are added only when MAX_FACTS allows.
+function mergeFacts(existing: MemoryFact[], incoming: MemoryFact[]): MemoryFact[] {
+  const result: MemoryFact[] = [...existing];
+
+  for (const newFact of incoming) {
+    if (MULTI_VALUE_KEYS.has(newFact.key)) {
+      const duplicate = result.some(
+        (f) => f.key === newFact.key && f.value.toLowerCase() === newFact.value.toLowerCase()
+      );
+      if (!duplicate && result.length < MAX_FACTS) {
+        result.push(newFact);
+      }
+    } else {
+      const idx = result.findIndex((f) => f.key === newFact.key);
+      if (idx !== -1) {
+        result[idx] = newFact; // replace in place — no size change
+      } else if (result.length < MAX_FACTS) {
+        result.push(newFact);
+      }
+    }
+  }
+
+  return result;
+}
+
 // Validates and cleans the n8n response. Returns null if the shape is invalid.
 function validateN8nResponse(
   raw: unknown
@@ -143,9 +177,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "n8n_validation_failed" }, { status: 502 });
   }
 
-  // 6. Write back to Supabase via service client
+  // 6. Merge new facts into existing, then write back to Supabase via service client.
+  // summary is replaced outright; facts are merged to avoid losing existing entries.
+  const mergedFacts = mergeFacts(currentFacts, validated.facts);
+
   const { error: upsertError } = await supabase.from("user_memory").upsert(
-    { user_id: userId, summary: validated.summary, facts: validated.facts },
+    { user_id: userId, summary: validated.summary, facts: mergedFacts },
     { onConflict: "user_id" }
   );
 
