@@ -90,6 +90,9 @@ export async function POST(req: NextRequest) {
   if (memory) {
     n8nPayload.memory = memory;
   }
+  if (recentTurns.length > 0) {
+    n8nPayload.recent_turns = recentTurns;
+  }
 
   let n8nResponse: Response;
   try {
