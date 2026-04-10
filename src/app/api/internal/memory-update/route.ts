@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  loadUserMemory,
-  upsertUserMemory,
-  resetMemoryUpdateCounter,
-} from "@/lib/chat/memory";
+import { createServiceClient } from "@/lib/supabase/service";
 import type { MemoryFact } from "@/types/supabase";
 
 // Allowed schema values — must match the n8n workflow and spec.
@@ -61,7 +57,8 @@ function validateN8nResponse(
 
 // POST /api/internal/memory-update
 // Internal endpoint — called fire-and-forget by /api/chat when a memory update is due.
-// Not exposed to clients. Errors here must never affect the chat response.
+// Uses service role client (bypasses RLS) because this is a server-to-server call
+// with no user session cookies. Errors here must never affect the chat response.
 export async function POST(req: NextRequest) {
   // 1. Parse request body
   let userId: string;
@@ -92,8 +89,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "misconfigured" }, { status: 500 });
   }
 
-  // 3. Load current durable memory (null = no row yet, acceptable)
-  const currentMemory = await loadUserMemory(userId);
+  // 3. Load current durable memory via service client (no user session in this context)
+  const supabase = createServiceClient();
+
+  const { data: memoryRow } = await supabase
+    .from("user_memory")
+    .select("summary, facts")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const currentSummary = memoryRow?.summary ?? null;
+  const currentFacts = (memoryRow?.facts as MemoryFact[] | null) ?? [];
 
   // 4. Call n8n memory-update workflow
   let n8nRaw: unknown;
@@ -108,8 +114,8 @@ export async function POST(req: NextRequest) {
           assistant_answer: lastAssistantAnswer,
         },
         existing_memory: {
-          summary: currentMemory?.summary ?? null,
-          facts: currentMemory?.facts ?? [],
+          summary: currentSummary,
+          facts: currentFacts,
         },
       }),
       signal: AbortSignal.timeout(30000),
@@ -137,17 +143,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "n8n_validation_failed" }, { status: 502 });
   }
 
-  // 6. Write back to Supabase
-  const writeOk = await upsertUserMemory(userId, validated);
-  if (!writeOk) {
-    console.error("[memory-update] Supabase write failed for user", userId);
+  // 6. Write back to Supabase via service client
+  const { error: upsertError } = await supabase.from("user_memory").upsert(
+    { user_id: userId, summary: validated.summary, facts: validated.facts },
+    { onConflict: "user_id" }
+  );
+
+  if (upsertError) {
+    console.error("[memory-update] Supabase write failed for user", userId, upsertError.message);
     return NextResponse.json({ ok: false, error: "write_failed" }, { status: 500 });
   }
 
   // 7. Reset counter only after successful write
   // A failure here is non-critical: memory is already written, counter will retry on next trigger.
-  const resetOk = await resetMemoryUpdateCounter(userId);
-  if (!resetOk) {
+  const { error: resetError } = await supabase
+    .from("user_memory")
+    .update({
+      answered_since_last_memory_update: 0,
+      last_memory_update_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
+
+  if (resetError) {
     console.error("[memory-update] Counter reset failed for user", userId, "(memory was written)");
   }
 
