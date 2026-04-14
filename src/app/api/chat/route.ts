@@ -102,7 +102,9 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify(n8nPayload),
       signal: AbortSignal.timeout(25000),
     });
-  } catch {
+  } catch (e) {
+    const isTimeout = e instanceof Error && e.name === "AbortError";
+    console.error("[chat] n8n fetch failed:", isTimeout ? "timeout (25s)" : e);
     return deny("temporary_error", 503, { error: "service_unavailable" });
   }
 
@@ -143,12 +145,16 @@ export async function POST(req: NextRequest) {
               last_assistant_answer: lastAnswer.trim(),
               recent_turns: recentTurns,
             }),
+            // Cap wait time so a slow memory-update pipeline doesn't block the chat response.
+            // Memory counter is not reset on timeout — the trigger will retry on the next turn.
+            signal: AbortSignal.timeout(20000),
           });
           if (!triggerRes.ok) {
             console.error("[chat] memory-update trigger HTTP error:", triggerRes.status);
           }
         } catch (e) {
-          console.error("[chat] memory-update trigger failed:", e);
+          const isTimeout = e instanceof Error && e.name === "AbortError";
+          console.error("[chat] memory-update trigger failed:", isTimeout ? "timeout (20s)" : e);
         }
       }
     }
