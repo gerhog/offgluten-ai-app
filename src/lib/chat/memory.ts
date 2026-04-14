@@ -174,7 +174,9 @@ export async function loadUserMemoryForChat(userId: string): Promise<{
     summary: data.summary ?? null,
     facts: (data.facts as MemoryFact[] | null) ?? null,
   };
-  const updateDue = isMemoryUpdateDue(data.answered_since_last_memory_update ?? 0);
+  // +1 accounts for the increment that /api/chat will apply after this read.
+  // updateDue is only consumed inside the "answered" branch where the increment is guaranteed.
+  const updateDue = isMemoryUpdateDue((data.answered_since_last_memory_update ?? 0) + 1);
 
   return { memory, updateDue };
 }
