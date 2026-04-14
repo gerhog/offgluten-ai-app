@@ -131,18 +131,25 @@ export async function POST(req: NextRequest) {
 
       if (lastAnswer.trim()) {
         const internalUrl = new URL("/api/internal/memory-update", req.url).href;
-        fetch(internalUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: access.profile.id,
-            last_user_message: message,
-            last_assistant_answer: lastAnswer.trim(),
-            recent_turns: recentTurns,
-          }),
-        }).catch((e) =>
-          console.error("[chat] memory-update trigger failed:", e)
-        );
+        // Awaited so Vercel doesn't kill the request before it reaches /api/internal/memory-update.
+        // Adds latency only on trigger messages (every ~5 answered turns).
+        try {
+          const triggerRes = await fetch(internalUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: access.profile.id,
+              last_user_message: message,
+              last_assistant_answer: lastAnswer.trim(),
+              recent_turns: recentTurns,
+            }),
+          });
+          if (!triggerRes.ok) {
+            console.error("[chat] memory-update trigger HTTP error:", triggerRes.status);
+          }
+        } catch (e) {
+          console.error("[chat] memory-update trigger failed:", e);
+        }
       }
     }
   }
