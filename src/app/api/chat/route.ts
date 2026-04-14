@@ -120,8 +120,8 @@ export async function POST(req: NextRequest) {
   // 6. Post-response side effects (paid/beta, answered only — fire-and-forget, do not block).
   const n8n = n8nData as Record<string, unknown>;
   if (isDurable && n8n.status === "answered") {
-    // Increment the answered counter (async, does not block).
-    incrementAnsweredCounter(access.profile.id);
+    // Increment the answered counter. Awaited so Vercel doesn't kill the promise before it completes.
+    await incrementAnsweredCounter(access.profile.id);
 
     // Trigger memory update when due. Extract assistant answer from the n8n response.
     if (updateDue) {
