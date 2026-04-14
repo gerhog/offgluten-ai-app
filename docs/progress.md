@@ -55,10 +55,114 @@
 - d34d4e5 — feat: wire memory-update trigger in /api/chat
 - e3c6d54 — chore: trigger redeploy for N8N_MEMORY_UPDATE_WEBHOOK_URL env
 
-### Not yet done:
-- [ ] Активировать n8n воркфлоу `GfCl6woJZWTwjFr8` (сейчас inactive/draft)
-- [ ] Smoke-test end-to-end: paid user → 5 answered messages → memory update fires
+### Done (2026-04-10 — полная сессия):
+
+**Инфраструктура:**
+- [x] Applied missing Supabase migrations to production (`user_memory` table + bookkeeping columns)
+- [x] Fixed RLS gap: `/api/internal/memory-update` now uses service role client (`src/lib/supabase/service.ts`)
+- [x] Added `SUPABASE_SERVICE_ROLE_KEY` to Vercel
+
+**Memory extraction — Stage 1:**
+- [x] Fixed n8n memory-update prompt: убрана over-restriction, добавлены секции EXTRACT/DO NOT EXTRACT
+- [x] Fact merge logic в `/api/internal/memory-update`: avoids/includes мультизначные, остальные replace-in-place
+
+**Memory extraction — Stage 2 (multi-turn context):**
+- [x] `chat/page.tsx`: собирает и отправляет `recent_turns[]` (max 5, 500 символов) с каждым запросом
+- [x] `/api/chat`: санитизирует, пробрасывает в memory-update trigger
+- [x] `/api/internal/memory-update`: принимает, передаёт в n8n
+- [x] n8n `GfCl6woJZWTwjFr8`: Normalize Input + Prepare Memory Prompt обновлены
+- [x] Окно сужено 10→5 синхронно во всех точках
+
+**Bug fix: main chat domain routing (Bug #1):**
+- [x] Диагноз: два независимых дефекта — ё/е mismatch в keyword matching + нет контекста в main chat path
+- [x] `/api/chat`: `recent_turns` теперь идёт и в основной n8n payload (ранее только в memory-update)
+- [x] n8n `h724YslVLnv7QFNfQtVCT` — Normalize Input: добавлена нормализация `recent_turns`
+- [x] n8n `h724YslVLnv7QFNfQtVCT` — Classify Query: ё→е нормализация + context-aware проверка по recent_turns
+- [x] Прямой тест подтвердил: n8n classifier исправлен ("Обычно я ем рис и гречку" → answered при наличии recent_turns)
+
+### Commits (2026-04-10):
+- 78185eb — service role client + smoke-test fixes
+- bbe9baf — feat: multi-turn context for memory extraction (stage 2)
+- 54522d8 — fix: recent_turns window 10→5 везде
+- 39eca0b — fix: pass recent_turns to main n8n webhook for domain classification
+
+---
+
+## Session: 2026-04-13
+
+### Done:
+
+**Bug #1 — main chat non_domain regression (исправлен и принят):**
+- [x] Off-topic gate в `Classify Query` (`h724YslVLnv7QFNfQtVCT`): явный blocklist (анекдот, погода, кино...) проверяется ДО context fallback — prior domain context не может "спасти" off-topic сообщение
+- [x] Все 4 acceptance cases пройдены: "Что такое целиакия?" → answered, "Обычно я ем рис и гречку" → answered, "Расскажи анекдот" → non_domain, "Какая сегодня погода?" → non_domain
+
+**Bug #2 — weak_retrieval_medical fallback слишком жёсткий (исправлен):**
+- [x] Root cause: similarity scores = None из Supabase Vector Store → maxSimilarity всегда 0 → порог ≥0.7 никогда не достигается → все medical запросы с чанками → weak → cautious
+- [x] `Assess Retrieval Quality` (`h724YslVLnv7QFNfQtVCT`): cautious только при `empty` (нет чанков совсем); weak с чанками → AI отвечает осторожно
+- [x] Тест: "у меня целиакия. хочу сдать анализы..." → answered (3 релевантных чанка)
+
+**Bug #3 — memory-update pipeline не завершался (исправлен):**
+- [x] Root cause: опечатка `existingFacts` вместо `existingFactsText` в `contextParts` → ReferenceError → workflow падал до OpenAI → summary/facts не обновлялись, счётчик не сбрасывался
+- [x] `Prepare Memory Prompt` (`GfCl6woJZWTwjFr8`): одна строка исправлена
+- [x] Supabase до/после: `answered_since_last_memory_update` 20→0, `last_memory_update_at` обновлён, summary обновлён
+
+**Memory extraction policy v1 (реализована, частично верифицирована):**
+- [x] `Prepare Memory Prompt` (`GfCl6woJZWTwjFr8`) обновлён:
+  - Facts: строгие правила — только стабильные личные атрибуты; `includes` только при явных habitual-сигналах ("обычно", "каждый день", "часто", "регулярно")
+  - Summary: stable profile + recurring interests; запрет временных симптомов, one-off событий, probabilistic medical inference
+- [x] Прямые тесты webhook: "Вчера мне было плохо" → не попало в summary ✓; "Обычно я ем рис и гречку каждый день" → includes: rice, buckwheat ✓
+- [ ] **Полный E2E цикл после последних патчей не пройден** — нужен clean smoke test
+
+### Не завершено / следующая сессия:
+
+**Memory extraction — revalidation (PENDING):**
+- [ ] Чистый smoke test: реальный chat → trigger → n8n → Supabase writeback
+- [ ] Проверить: нет временных симптомов в summary, `includes` появляются от habitual-фраз, счётчик сбрасывается
+- [ ] Только после этого считать tuning закрытым
+
+**Roadmap:**
 - [ ] Paid soft-limit engine (20/5min, 30-50/day)
+- [ ] Real billing integration
+
+---
+
+## Session: 2026-04-14
+
+### Done:
+
+**Durable memory pipeline — три app-side фикса (все подтверждены live):**
+- [x] `708fc84` — `await incrementAnsweredCounter(...)`: был fire-and-forget, Vercel убивал до завершения
+- [x] `e538d8a` — off-by-one в `updateDue`: `loadUserMemoryForChat` читал counter до инкремента → триггер срабатывал на N+1 вместо N; фикс: `isMemoryUpdateDue(count + 1)`
+- [x] `a75b3d0` — `await fetch(internalUrl)` для memory-update trigger: та же fire-and-forget проблема, `/api/internal/memory-update` никогда не получал вызов
+- [x] `4408e30` — `AbortSignal.timeout(20000)` на internal fetch + логирование n8n ошибок по типу (AbortError vs. сетевая)
+- [x] Live подтверждение: `answered_since_last_memory_update` сбрасывается в 0, `last_memory_update_at` обновляется, `GfCl6woJZWTwjFr8` исполняется успешно
+
+**Memory extraction quality — tuning (`GfCl6woJZWTwjFr8`, `Prepare Memory Prompt`):**
+- [x] `includes`: расширен список habitual-сигналов, добавлено правило положительного bias, 4 новых позитивных + 3 негативных примера
+- [x] Summary: запрет interpretive connectives (указывает на, свидетельствует о…), структурное правило "не добавлять вывод к факту", good/bad пример в промпте
+- [x] Верифицировано direct webhook: summary описательный, `includes` извлекается из habitual-фраз
+
+**Markdown rendering в chat UI:**
+- [x] `react-markdown@10.1.0` добавлен как зависимость
+- [x] `AssistantMessage` компонент — параграфы, списки, bold; user messages — plain text
+- [x] Commit `33633b7`
+
+**Answer formatting — `h724YslVLnv7QFNfQtVCT`:**
+- [x] `Prepare AI Input`: добавлены правила валидного markdown (blank line перед списком, каждый bullet на новой строке, no bold+bullet на одной строке, good/bad пример), запрет citation markers
+- [x] `Format AI Response`: regex-очистка citation markers + deterministic нормализатор псевдо-markdown → `**Header:** - item1 - item2` становится корректным markdown
+
+### Commits (2026-04-14):
+- 708fc84 — fix: await incrementAnsweredCounter
+- e538d8a — fix: off-by-one в updateDue
+- a75b3d0 — fix: await memory-update trigger fetch
+- 4408e30 — fix: timeout на internal fetch + error logging
+- 33633b7 — feat: markdown rendering (react-markdown)
+
+### Next steps:
+- [ ] Memory model comparison: gpt-4.1-mini vs. сильнее для extraction
+- [ ] Smart allowance для user-context сообщений без явного gluten/celiac anchor
+- [ ] Occasional temporary_error расследование (логирование добавлено, теперь наблюдаемо)
+- [ ] Paid soft-limit engine
 - [ ] Real billing integration
 
 ---
