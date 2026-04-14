@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 function getOrCreateSessionId(): string {
   let id = localStorage.getItem("chat_session_id");
@@ -42,6 +43,36 @@ const EXAMPLE_QUESTIONS = [
   "Можно ли есть овёс?",
   "Какие продукты содержат скрытый глютен?",
 ];
+
+function AssistantMessage({ text }: { text: string }) {
+  // Negative margin cancels the trailing 8px bottom margin of the last block element
+  // so the bubble's own padding is the only spacing at the bottom.
+  return (
+    <div style={{ marginBottom: -8 }}>
+      <ReactMarkdown
+        components={{
+          p: ({ children }) => (
+            <p style={{ margin: "0 0 8px", lineHeight: 1.6 }}>{children}</p>
+          ),
+          ul: ({ children }) => (
+            <ul style={{ margin: "0 0 8px", paddingLeft: 20 }}>{children}</ul>
+          ),
+          ol: ({ children }) => (
+            <ol style={{ margin: "0 0 8px", paddingLeft: 20 }}>{children}</ol>
+          ),
+          li: ({ children }) => (
+            <li style={{ marginBottom: 2, lineHeight: 1.6 }}>{children}</li>
+          ),
+          strong: ({ children }) => (
+            <strong style={{ fontWeight: 600 }}>{children}</strong>
+          ),
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
 function SystemCard({ subtype, text }: { subtype: SystemSubtype; text: string }) {
   return (
@@ -294,7 +325,11 @@ export default function ChatPage() {
                 color: msg.role === "user" ? "#fff" : "#1a1a1a",
               }}
             >
-              {msg.text}
+              {msg.role === "assistant" ? (
+                <AssistantMessage text={msg.text} />
+              ) : (
+                msg.text
+              )}
             </div>
           );
         })}
