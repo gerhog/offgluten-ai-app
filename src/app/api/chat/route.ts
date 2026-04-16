@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkChatAccess, incrementTrialUsage } from "@/lib/chat/access";
 import { loadUserMemoryForChat, incrementAnsweredCounter } from "@/lib/chat/memory";
 
+export const maxDuration = 60;
+
 type ChatStatus =
   | "success"
   | "unauthenticated"
@@ -100,11 +102,11 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(n8nPayload),
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(35000),
     });
   } catch (e) {
     const isTimeout = e instanceof Error && e.name === "AbortError";
-    console.error("[chat] n8n fetch failed:", isTimeout ? "timeout (25s)" : e);
+    console.error("[chat] n8n fetch failed:", isTimeout ? "timeout (35s)" : e);
     return deny("temporary_error", 503, { error: "service_unavailable" });
   }
 

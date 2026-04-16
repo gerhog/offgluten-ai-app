@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { MemoryFact } from "@/types/supabase";
 
+export const maxDuration = 60;
+
 // Allowed schema values — must match the n8n workflow and spec.
 const ALLOWED_CATEGORIES = new Set<string>(["medical", "dietary", "preference"]);
 const ALLOWED_KEYS = new Set<string>(["diagnosed_with", "avoids", "includes", "prefers", "diet_type"]);
