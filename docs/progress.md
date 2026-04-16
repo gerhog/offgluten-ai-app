@@ -167,6 +167,36 @@
 
 ---
 
+## Session: 2026-04-16
+
+### Done:
+
+**Диагностика temporary_error (СЕРВИС НЕДОСТУПЕН):**
+- [x] Root cause: n8n выполнялся 26.5с, `AbortSignal.timeout(25000)` срабатывал на 25с → `/api/chat` возвращал `temporary_error`; n8n при этом успешно завершался через 1.5с
+- [x] `src/app/api/chat/route.ts`: timeout 25000→35000, лог обновлён
+- [x] `src/app/api/chat/route.ts` + `src/app/api/internal/memory-update/route.ts`: добавлен `export const maxDuration = 60`
+- [x] Commit `02e31e0`
+
+**RAG dataset — первичная генерация (celiac knowledge base):**
+- [x] Загружен Google Docs документ (73 KB, ~1400 строк) через Playwright → `/playwright-mcp/Новый-документ.txt`
+- [x] `RAG_main_edited/convert.py` — скрипт конвертации: line-by-line ремонт, chunk splitting, per-chunk JSON parsing с multi-strategy fallback, enrichment (domain/record_type/guardrail/region), дедупликация, валидация
+- [x] Починено 6 типов структурных повреждений: `double_close`×1, `bare_brackets`×7, `missing_close`×5 (added `}` или 1–3 `]`)
+- [x] `RAG_main_edited/rag-celiac-baseline-v2.json` — 171 запись, 230 KB, все поля заполнены, JSON валиден
+- [x] `RAG_main_edited/rag-celiac-baseline-v2-notes.md` — лог ремонта + раздельная статистика по секциям
+- [x] Доменная структура: lifestyle(54), diet(28), social(17), definitions(17), comorbidity(13), cross_contamination(15), certification(9), symptoms(5), diagnosis(5), treatment(5), action_algorithm(2), medications(1)
+- [x] Preservation: exact(153), split_exact_sentences(6), mechanically_repaired_only(12)
+- [x] Регионы: global(136), russia(35)
+- [x] Исправлена пустая `topic` у записи `gluten-free-hotels` → "Отели с безглютеновым питанием — общие принципы"
+
+### Next steps:
+- [ ] Загрузить датасет в Supabase vector store (pgvector)
+- [ ] Smoke test retrieval: несколько целевых запросов, проверить similarity scores
+- [ ] Memory model comparison: gpt-4.1-mini vs. сильнее для extraction
+- [ ] Paid soft-limit engine
+- [ ] Real billing integration
+
+---
+
 ## Session: 2026-04-03
 
 ### Done:
