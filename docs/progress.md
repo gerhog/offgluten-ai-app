@@ -167,6 +167,50 @@
 
 ---
 
+## Session: 2026-04-20
+
+### Done:
+
+**RAG dataset — загрузка в Supabase retrieval (`cezbjtpybmqlgksynwrs`):**
+- [x] Включён `pgvector` v0.8.0
+- [x] Создана таблица `public.documents` (14 колонок: content, embedding vector(1536), source_id, section, topic, source_topic, domain, record_type, region, guardrail[], tags[], source_preservation)
+- [x] Созданы индексы: `ivfflat` cosine (lists=50), btree по domain и region
+- [x] Загружены все 171 запись с эмбеддингами (`text-embedding-3-small`), 0 пропущено
+- [x] Создана `match_documents(float[], int, text, text)` — тестовая REST RPC (сохранена)
+- [x] Создана `match_documents_v2(vector(1536), int, jsonb)` — LangChain-совместимая, поддерживает filter по domain/region
+
+**n8n интеграция — workflow `h724YslVLnv7QFNfQtVCT`:**
+- [x] Создан credential `Retrieval-v2` (id: `9DpKiFrDPZmjvASa`) → `cezbjtpybmqlgksynwrs`
+- [x] `Supabase Vector Store`: credential → `Retrieval-v2`, `queryName=match_documents_v2`
+- [x] `Assemble Retrieval Context`: добавлен парсинг `domain`, `region`, `guardrail`, `record_type`, `section`, `topic` из metadata объекта ответа
+- [x] Live smoke test (полные фразы): «овёс при целиакии» → answered ✓, «безглютеновое питание в России» → answered ✓, «болезни сопровождают целиакию» → answered ✓
+
+**RAG dataset — ревью и правки:**
+- [x] Медицинское ревью пройдено успешно
+- [x] Одна правка от консультанта: `diet-007` («Питание вне дома») — текст заменён на утверждённый медконсультантом (коммит `ece5fef`)
+- [x] Cleanup pass: 10 записей с пустыми metadata полями исправлены (только метаданные, текст не тронут) — коммит `583b755`
+
+### Проблемы выявленные при независимой верификации:
+
+**Verification gap (решён):**
+- Снапшот workflow не отражал live-изменения на момент проверки (проверялась старая копия)
+- Фактическое live-состояние подтверждено через API: credential, queryName, Assemble code — все обновлены
+
+**Routing fragility — PENDING (следующая сессия):**
+- Короткие запросы без явных celiac/gluten слов → `non_domain`
+- Примеры: «Льготы в России», «Сопутствующие болезни» → blocked до retrieval
+- Полные фразы («целиакия», «безглютеновое») → корректно проходят
+- Реальные пользователи часто задают короткие follow-up вопросы → false rejection
+
+### Next steps:
+- [ ] Исправить classifier: расширить контекст-aware allowance для коротких домен-adjacent запросов
+- [ ] Добавить domain/region фильтрацию в retrieval (прокидывать из domain_route в filter jsonb)
+- [ ] Memory model comparison: gpt-4.1-mini vs. сильнее
+- [ ] Paid soft-limit engine
+- [ ] Real billing integration
+
+---
+
 ## Session: 2026-04-16
 
 ### Done:
