@@ -243,11 +243,9 @@ export default async function LoginPage({ searchParams }: Props) {
           <div className="auth-left-inner">
 
             {/* Brand mark */}
-            <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-              <BrandMark size={34} />
-              <span style={{ color: "#fff", fontWeight: 600, fontSize: 17, letterSpacing: "-0.01em" }}>
-                Offgluten AI
-              </span>
+            <div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/LOGO.png" alt="Offgluten AI" style={{ height: 26, filter: "brightness(0) invert(1)" }} />
             </div>
 
             {/* Hero text */}
@@ -297,10 +295,8 @@ export default async function LoginPage({ searchParams }: Props) {
 
             {/* Mobile brand (visible only on mobile) */}
             <div className="auth-mobile-brand">
-              <BrandMark size={44} radius={12} />
-              <span style={{ marginTop: 12, color: "#1c1a18", fontWeight: 700, fontSize: 20, letterSpacing: "-0.02em" }}>
-                Offgluten AI
-              </span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/LOGO.png" alt="Offgluten AI" style={{ height: 28 }} />
             </div>
 
             {/* Heading */}
@@ -419,33 +415,3 @@ export default async function LoginPage({ searchParams }: Props) {
   );
 }
 
-/* ── Shared brand mark SVG component ─────────────────────────── */
-function BrandMark({ size = 34, radius = 9 }: { size?: number; radius?: number }) {
-  const s = Math.round(size * 0.52);
-  return (
-    <div style={{
-      width: size,
-      height: size,
-      borderRadius: radius,
-      background: "#fa8669",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      flexShrink: 0,
-    }}>
-      <svg width={s} height={s} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Grain head */}
-        <path
-          d="M10 2C10 2 6 5.5 6 9C6 12 7.8 14 10 14C12.2 14 14 12 14 9C14 5.5 10 2 10 2Z"
-          fill="white"
-          fillOpacity="0.95"
-        />
-        {/* Stem */}
-        <line x1="10" y1="14" x2="10" y2="18" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
-        {/* Side leaf hints */}
-        <path d="M10 11C10 11 7.5 9.5 7 8" stroke="white" strokeWidth="1.1" strokeLinecap="round" strokeOpacity="0.55" />
-        <path d="M10 11C10 11 12.5 9.5 13 8" stroke="white" strokeWidth="1.1" strokeLinecap="round" strokeOpacity="0.55" />
-      </svg>
-    </div>
-  );
-}
