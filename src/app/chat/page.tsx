@@ -452,7 +452,7 @@ export default function ChatPage() {
           width: 140px;
           padding: 16px 12px 14px;
           background: #fff;
-          border: 1.5px solid #e5e0d8;
+          border: none;
           border-radius: 14px;
           text-align: center;
           cursor: pointer;
@@ -464,7 +464,6 @@ export default function ChatPage() {
           gap: 10px;
         }
         .preset-card:hover {
-          border-color: #c8c3bb;
           box-shadow: 0 2px 8px rgba(28,26,24,0.07);
           transform: translateY(-1px);
         }
@@ -677,7 +676,7 @@ export default function ChatPage() {
                 <div className="empty-state">
                   <div className="empty-logo">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/brand/assistant%20icon.png" alt="" style={{ width: 88, height: 88 }} />
+                    <img src="/brand/assistant%20icon.png" alt="" style={{ width: 120, height: 120 }} />
                   </div>
                   <h1 className="empty-heading">Чем могу помочь?</h1>
                   <p className="empty-sub">Задайте вопрос о целиакии или безглютеновом питании</p>
