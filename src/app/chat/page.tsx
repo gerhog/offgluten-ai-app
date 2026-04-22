@@ -403,9 +403,9 @@ export default function ChatPage() {
         }
         .chat-messages-inner {
           width: 100%;
-          max-width: 700px;
+          max-width: 860px;
           margin: 0 auto;
-          padding: 0 24px;
+          padding: 0 32px;
           display: flex;
           flex-direction: column;
           gap: 16px;
@@ -479,8 +479,8 @@ export default function ChatPage() {
           flex-shrink: 0;
         }
         .preset-q {
-          font-size: 12.5px;
-          font-weight: 500;
+          font-size: 13.5px;
+          font-weight: 600;
           color: #1c1a18;
           line-height: 1.4;
         }
@@ -546,7 +546,7 @@ export default function ChatPage() {
           border-top: 1.5px solid #e5e0d8;
         }
         .chat-input-inner {
-          max-width: 700px;
+          max-width: 860px;
           margin: 0 auto;
           display: flex;
           gap: 10px;
