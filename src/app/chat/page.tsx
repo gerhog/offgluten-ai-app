@@ -397,15 +397,13 @@ export default function ChatPage() {
         .chat-messages {
           flex: 1;
           overflow-y: auto;
-          padding: 32px 0;
           display: flex;
           flex-direction: column;
+          min-height: 0;
         }
         .chat-messages-inner {
-          width: 100%;
-          max-width: 860px;
-          margin: 0 auto;
-          padding: 0 32px;
+          flex: 1;
+          padding: 40px 48px;
           display: flex;
           flex-direction: column;
           gap: 16px;
@@ -413,12 +411,13 @@ export default function ChatPage() {
 
         /* ── Empty state ───────────────────────────────── */
         .empty-state {
+          flex: 1;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 40px 0 16px;
           text-align: center;
+          padding: 0 0 48px;
         }
         .empty-logo {
           margin-bottom: 20px;
@@ -440,53 +439,55 @@ export default function ChatPage() {
         .presets-grid {
           display: flex;
           flex-direction: row;
-          gap: 10px;
-          width: 100%;
+          gap: 12px;
           overflow-x: auto;
           padding-bottom: 4px;
           scrollbar-width: none;
+          justify-content: center;
         }
         .presets-grid::-webkit-scrollbar { display: none; }
         .preset-card {
           flex-shrink: 0;
-          width: 140px;
-          padding: 16px 12px 14px;
+          width: 156px;
+          padding: 18px 14px 16px;
           background: #fff;
           border: none;
           border-radius: 14px;
           text-align: center;
           cursor: pointer;
-          transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+          transition: box-shadow 0.15s, transform 0.1s;
           font-family: inherit;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 10px;
+          gap: 11px;
+          box-shadow: 0 1px 4px rgba(28,26,24,0.06);
         }
         .preset-card:hover {
-          box-shadow: 0 2px 8px rgba(28,26,24,0.07);
-          transform: translateY(-1px);
+          box-shadow: 0 4px 14px rgba(28,26,24,0.1);
+          transform: translateY(-2px);
         }
-        .preset-card:active { transform: translateY(0); }
+        .preset-card:active { transform: translateY(0); box-shadow: 0 1px 4px rgba(28,26,24,0.06); }
         .preset-icon-wrap {
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
+          width: 48px;
+          height: 48px;
+          border-radius: 13px;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 20px;
+          font-size: 22px;
           flex-shrink: 0;
         }
         .preset-q {
-          font-size: 13.5px;
-          font-weight: 600;
-          color: #1c1a18;
+          font-size: 14px;
+          font-weight: 700;
+          color: #111;
           line-height: 1.4;
         }
         .preset-hint {
-          font-size: 11px;
-          color: #b0ada8;
+          font-size: 12px;
+          color: #9a9590;
+          line-height: 1.3;
         }
 
         /* ── Message bubbles ───────────────────────────── */
@@ -541,13 +542,11 @@ export default function ChatPage() {
         /* ── Input area ────────────────────────────────── */
         .chat-input-wrap {
           flex-shrink: 0;
-          padding: 16px 24px 24px;
+          padding: 16px 48px 28px;
           background: #faf9f7;
           border-top: 1.5px solid #e5e0d8;
         }
         .chat-input-inner {
-          max-width: 860px;
-          margin: 0 auto;
           display: flex;
           gap: 10px;
           align-items: flex-end;
@@ -609,11 +608,11 @@ export default function ChatPage() {
         }
 
         @media (max-width: 639px) {
-          .chat-messages { padding: 20px 0; }
-          .chat-messages-inner { padding: 0 16px; }
-          .chat-input-wrap { padding: 12px 16px 20px; }
+          .chat-messages-inner { padding: 24px 20px; }
+          .chat-input-wrap { padding: 12px 20px 20px; }
           .bubble-user, .bubble-assistant { max-width: 90%; }
           .empty-heading { font-size: 19px; }
+          .presets-grid { justify-content: flex-start; }
         }
       `}</style>
 
