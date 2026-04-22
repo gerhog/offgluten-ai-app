@@ -48,10 +48,10 @@ const SYSTEM_LABEL_COLORS: Record<SystemSubtype, string> = {
 };
 
 const PRESETS = [
-  { q: "Что такое целиакия?",                    hint: "Основы диагноза" },
-  { q: "Можно ли есть овёс при целиакии?",       hint: "Безопасные продукты" },
-  { q: "Какие продукты содержат скрытый глютен?", hint: "Состав и маркировка" },
-  { q: "Какие льготы доступны в России?",         hint: "Поддержка и права" },
+  { icon: "🌾", iconBg: "#fde9c4", q: "Что такое целиакия?",                    hint: "Основы диагноза" },
+  { icon: "🥣", iconBg: "#d4edda", q: "Можно ли есть овёс при целиакии?",       hint: "Безопасные продукты" },
+  { icon: "🏷️", iconBg: "#d4e6f1", q: "Какие продукты содержат скрытый глютен?", hint: "Состав и маркировка" },
+  { icon: "📋", iconBg: "#ede4f5", q: "Какие льготы доступны в России?",         hint: "Поддержка и права" },
 ];
 
 // Placeholder history — backend persistence is not yet implemented.
@@ -438,21 +438,30 @@ export default function ChatPage() {
           line-height: 1.5;
         }
         .presets-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
+          display: flex;
+          flex-direction: row;
           gap: 10px;
           width: 100%;
-          max-width: 520px;
+          overflow-x: auto;
+          padding-bottom: 4px;
+          scrollbar-width: none;
         }
+        .presets-grid::-webkit-scrollbar { display: none; }
         .preset-card {
-          padding: 14px 16px;
+          flex-shrink: 0;
+          width: 140px;
+          padding: 16px 12px 14px;
           background: #fff;
           border: 1.5px solid #e5e0d8;
-          border-radius: 12px;
-          text-align: left;
+          border-radius: 14px;
+          text-align: center;
           cursor: pointer;
           transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
           font-family: inherit;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
         }
         .preset-card:hover {
           border-color: #c8c3bb;
@@ -460,15 +469,24 @@ export default function ChatPage() {
           transform: translateY(-1px);
         }
         .preset-card:active { transform: translateY(0); }
+        .preset-icon-wrap {
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 20px;
+          flex-shrink: 0;
+        }
         .preset-q {
-          font-size: 13.5px;
+          font-size: 12.5px;
           font-weight: 500;
           color: #1c1a18;
           line-height: 1.4;
-          margin-bottom: 4px;
         }
         .preset-hint {
-          font-size: 11.5px;
+          font-size: 11px;
           color: #b0ada8;
         }
 
@@ -588,7 +606,7 @@ export default function ChatPage() {
           }
           .chat-overlay.is-open { display: block; }
           .chat-header { display: flex; }
-          .presets-grid { grid-template-columns: 1fr; max-width: 100%; }
+          .presets-grid { flex-wrap: nowrap; }
         }
 
         @media (max-width: 639px) {
@@ -659,17 +677,18 @@ export default function ChatPage() {
                 <div className="empty-state">
                   <div className="empty-logo">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/brand/LOGO.png" alt="Offgluten AI" style={{ height: 28, opacity: 0.7 }} />
+                    <img src="/brand/assistant%20icon.png" alt="" style={{ width: 88, height: 88 }} />
                   </div>
                   <h1 className="empty-heading">Чем могу помочь?</h1>
                   <p className="empty-sub">Задайте вопрос о целиакии или безглютеновом питании</p>
                   <div className="presets-grid">
-                    {PRESETS.map(({ q, hint }) => (
+                    {PRESETS.map(({ icon, iconBg, q, hint }) => (
                       <button
                         key={q}
                         className="preset-card"
                         onClick={() => { setInput(q); inputRef.current?.focus(); }}
                       >
+                        <div className="preset-icon-wrap" style={{ background: iconBg }}>{icon}</div>
                         <div className="preset-q">{q}</div>
                         <div className="preset-hint">{hint}</div>
                       </button>
