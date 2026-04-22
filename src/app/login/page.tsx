@@ -377,6 +377,11 @@ export default async function LoginPage({ searchParams }: Props) {
                   placeholder="••••••••"
                   autoComplete="current-password"
                 />
+                <div style={{ textAlign: "right", margin: "8px 0 4px" }}>
+                  <Link href="/forgot-password" style={{ fontSize: 13, color: "#9a9590" }}>
+                    Забыли пароль?
+                  </Link>
+                </div>
                 <button type="submit" className="auth-btn">Войти</button>
               </form>
             )}
