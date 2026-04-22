@@ -159,8 +159,8 @@ export default async function LoginPage({ searchParams }: Props) {
           width: 100%;
           padding: 13px 20px;
           margin-top: 16px;
-          background: #1c1a18;
-          color: #fff;
+          background: #fee0a3;
+          color: #1c1a18;
           border: none;
           border-radius: 9px;
           font-size: 15px;
@@ -170,7 +170,7 @@ export default async function LoginPage({ searchParams }: Props) {
           letter-spacing: 0.01em;
           transition: background 0.15s, transform 0.1s;
         }
-        .auth-btn:hover { background: #2e2b27; }
+        .auth-btn:hover { background: #fdd88e; }
         .auth-btn:active { transform: scale(0.997); }
 
         /* ── Banners ───────────────────────── */
