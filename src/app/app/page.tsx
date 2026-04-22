@@ -12,6 +12,8 @@ export default async function AppPage() {
     redirect("/login");
   }
 
+  redirect("/chat");
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, email, entitlement_status, created_at")

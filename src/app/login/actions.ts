@@ -36,7 +36,7 @@ export async function signIn(formData: FormData) {
     redirect(`/login?error=${encodeURIComponent(mapAuthError(error.message))}`);
   }
 
-  redirect("/app");
+  redirect("/chat");
 }
 
 export async function signUp(formData: FormData) {
