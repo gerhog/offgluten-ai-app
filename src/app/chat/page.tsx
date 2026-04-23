@@ -448,6 +448,8 @@ export default function ChatPage() {
           touch-action: pan-x;
           overscroll-behavior-x: contain;
           -webkit-overflow-scrolling: touch;
+          width: 100%;
+          box-sizing: border-box;
         }
         .presets-grid::-webkit-scrollbar { display: none; }
         .preset-card {
