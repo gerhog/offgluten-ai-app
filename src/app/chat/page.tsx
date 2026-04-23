@@ -400,7 +400,6 @@ export default function ChatPage() {
           display: flex;
           flex-direction: column;
           min-height: 0;
-          touch-action: pan-y;
         }
         .chat-messages-inner {
           flex: 1;
