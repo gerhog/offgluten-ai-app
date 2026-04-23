@@ -436,21 +436,23 @@ export default function ChatPage() {
           margin: 0 0 36px;
           line-height: 1.5;
         }
-        .presets-grid {
-          display: flex;
-          flex-direction: row;
-          gap: 12px;
-          overflow-x: scroll;
-          padding-bottom: 4px;
-          scrollbar-width: none;
-          justify-content: center;
+        .presets-scroll {
+          width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
           touch-action: pan-x;
           overscroll-behavior-x: contain;
-          -webkit-overflow-scrolling: touch;
-          width: 100%;
-          box-sizing: border-box;
+          scrollbar-width: none;
+          padding-bottom: 4px;
         }
-        .presets-grid::-webkit-scrollbar { display: none; }
+        .presets-scroll::-webkit-scrollbar { display: none; }
+        .presets-grid {
+          display: inline-flex;
+          flex-direction: row;
+          gap: 12px;
+          justify-content: center;
+          min-width: 100%;
+        }
         .preset-card {
           flex-shrink: 0;
           width: 156px;
@@ -609,7 +611,6 @@ export default function ChatPage() {
           }
           .chat-overlay.is-open { display: block; }
           .chat-header { display: flex; }
-          .presets-grid { flex-wrap: nowrap; }
         }
 
         @media (max-width: 639px) {
@@ -684,18 +685,20 @@ export default function ChatPage() {
                   </div>
                   <h1 className="empty-heading">Чем могу помочь?</h1>
                   <p className="empty-sub">Задайте вопрос о целиакии или безглютеновом питании</p>
-                  <div className="presets-grid">
-                    {PRESETS.map(({ icon, iconBg, q, hint }) => (
-                      <button
-                        key={q}
-                        className="preset-card"
-                        onClick={() => { setInput(q); inputRef.current?.focus(); }}
-                      >
-                        <div className="preset-icon-wrap" style={{ background: iconBg }}>{icon}</div>
-                        <div className="preset-q">{q}</div>
-                        <div className="preset-hint">{hint}</div>
-                      </button>
-                    ))}
+                  <div className="presets-scroll">
+                    <div className="presets-grid">
+                      {PRESETS.map(({ icon, iconBg, q, hint }) => (
+                        <button
+                          key={q}
+                          className="preset-card"
+                          onClick={() => { setInput(q); inputRef.current?.focus(); }}
+                        >
+                          <div className="preset-icon-wrap" style={{ background: iconBg }}>{icon}</div>
+                          <div className="preset-q">{q}</div>
+                          <div className="preset-hint">{hint}</div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
