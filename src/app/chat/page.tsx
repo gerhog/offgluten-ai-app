@@ -440,10 +440,13 @@ export default function ChatPage() {
           display: flex;
           flex-direction: row;
           gap: 12px;
-          overflow-x: auto;
+          overflow-x: scroll;
           padding-bottom: 4px;
           scrollbar-width: none;
           justify-content: center;
+          touch-action: pan-x;
+          overscroll-behavior-x: contain;
+          -webkit-overflow-scrolling: touch;
         }
         .presets-grid::-webkit-scrollbar { display: none; }
         .preset-card {
