@@ -58,10 +58,14 @@ export async function POST(req: NextRequest) {
     return uploadError("invalid_request", 400, "expected multipart/form-data");
   }
 
-  const file = formData.get("file");
-  if (!file || !(file instanceof File)) {
+  const fileEntries = formData.getAll("file");
+  if (fileEntries.length === 0 || !(fileEntries[0] instanceof File)) {
     return uploadError("missing_file", 400, "field 'file' is required");
   }
+  if (fileEntries.length > 1) {
+    return uploadError("invalid_request", 400, "exactly one file is allowed per upload");
+  }
+  const file = fileEntries[0];
 
   // 3. Validate MIME type before any storage write (primary enforcement layer)
   if (!ALLOWED_MIME_TYPES.has(file.type)) {
