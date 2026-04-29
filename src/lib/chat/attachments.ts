@@ -1,0 +1,121 @@
+import { createServiceClient } from "@/lib/supabase/service";
+
+const BUCKET = "chat-attachments";
+
+// Short-lived URL for n8n processing. /api/chat has maxDuration=60 and n8n timeout=35s,
+// so 300s gives a comfortable buffer without leaving a long-lived window.
+const SIGNED_URL_TTL_SECONDS = 300;
+
+const ALLOWED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
+
+export type AttachmentValidationError =
+  | "attachment_not_found"
+  | "attachment_not_owned"
+  | "attachment_not_pending"
+  | "attachment_invalid";
+
+export type AttachmentValidation =
+  | { ok: true; storagePath: string; mimeType: string; fileName: string }
+  | { ok: false; reason: AttachmentValidationError; httpStatus: number };
+
+// Verifies the attachment exists, belongs to userId, is pending, and has an allowed MIME type.
+// Scoped to userId at the query level — never trusts client-supplied ownership.
+export async function validatePendingAttachment(
+  attachmentId: string,
+  userId: string
+): Promise<AttachmentValidation> {
+  const service = createServiceClient();
+
+  const { data, error } = await service
+    .from("attachments")
+    .select("user_id, storage_path, mime_type, file_name, status")
+    .eq("id", attachmentId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[attachments] validatePendingAttachment DB error:", error.message);
+    return { ok: false, reason: "attachment_not_found", httpStatus: 404 };
+  }
+
+  if (!data) {
+    return { ok: false, reason: "attachment_not_found", httpStatus: 404 };
+  }
+
+  if (data.user_id !== userId) {
+    return { ok: false, reason: "attachment_not_owned", httpStatus: 403 };
+  }
+
+  if (data.status !== "pending") {
+    return { ok: false, reason: "attachment_not_pending", httpStatus: 409 };
+  }
+
+  if (!ALLOWED_MIME_TYPES.has(data.mime_type)) {
+    return { ok: false, reason: "attachment_invalid", httpStatus: 400 };
+  }
+
+  return {
+    ok: true,
+    storagePath: data.storage_path,
+    mimeType: data.mime_type,
+    fileName: data.file_name,
+  };
+}
+
+export type AttachmentConfirm =
+  | { ok: true; storagePath: string }
+  | { ok: false };
+
+// Transitions the attachment to confirmed and sets retention timestamps.
+// The .eq("status", "pending") guard prevents a double-confirm race: if two concurrent
+// requests validate the same attachment, only the first UPDATE will match; the second
+// gets no rows back and returns ok: false.
+export async function confirmAttachment(
+  attachmentId: string,
+  userId: string
+): Promise<AttachmentConfirm> {
+  const service = createServiceClient();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+  const { data, error } = await service
+    .from("attachments")
+    .update({
+      status: "confirmed",
+      confirmed_at: now.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    })
+    .eq("id", attachmentId)
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .select("storage_path")
+    .single();
+
+  if (error || !data) {
+    console.error("[attachments] confirmAttachment failed:", error?.message ?? "no row matched");
+    return { ok: false };
+  }
+
+  return { ok: true, storagePath: data.storage_path };
+}
+
+// Generates a short-lived signed URL for an already-confirmed storage object.
+// Returns null on error — callers must treat null as a hard failure.
+export async function generateAttachmentSignedUrl(storagePath: string): Promise<string | null> {
+  const service = createServiceClient();
+
+  const { data, error } = await service.storage
+    .from(BUCKET)
+    .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
+
+  if (error || !data?.signedUrl) {
+    console.error("[attachments] createSignedUrl failed:", error?.message);
+    return null;
+  }
+
+  return data.signedUrl;
+}
