@@ -103,6 +103,26 @@ export async function confirmAttachment(
   return { ok: true, storagePath: data.storage_path };
 }
 
+// Reverts a confirmed attachment back to pending, clearing the lifecycle timestamps.
+// Used as compensation when signed URL generation fails after a successful confirm —
+// leaves the attachment in a retryable state rather than a dead confirmed-but-unusable one.
+export async function revertAttachmentToPending(
+  attachmentId: string,
+  userId: string
+): Promise<void> {
+  const service = createServiceClient();
+  const { error } = await service
+    .from("attachments")
+    .update({ status: "pending", confirmed_at: null, expires_at: null })
+    .eq("id", attachmentId)
+    .eq("user_id", userId)
+    .eq("status", "confirmed");
+
+  if (error) {
+    console.error("[attachments] revertAttachmentToPending failed:", error.message, "id:", attachmentId);
+  }
+}
+
 // Generates a short-lived signed URL for an already-confirmed storage object.
 // Returns null on error — callers must treat null as a hard failure.
 export async function generateAttachmentSignedUrl(storagePath: string): Promise<string | null> {

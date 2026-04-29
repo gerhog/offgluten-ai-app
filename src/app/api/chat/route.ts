@@ -4,6 +4,7 @@ import { loadUserMemoryForChat, incrementAnsweredCounter } from "@/lib/chat/memo
 import {
   validatePendingAttachment,
   confirmAttachment,
+  revertAttachmentToPending,
   generateAttachmentSignedUrl,
 } from "@/lib/chat/attachments";
 
@@ -123,6 +124,8 @@ export async function POST(req: NextRequest) {
 
     const signedUrl = await generateAttachmentSignedUrl(confirm.storagePath);
     if (!signedUrl) {
+      // Compensate: revert to pending so the user can retry without the attachment being stuck confirmed.
+      await revertAttachmentToPending(attachmentId, access.profile.id);
       return deny("attachment_unavailable", 500);
     }
 
