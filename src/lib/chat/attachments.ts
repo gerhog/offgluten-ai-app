@@ -6,31 +6,47 @@ const BUCKET = "chat-attachments";
 
 export type AttachmentMode = "medical_document" | "generic_attachment";
 
-// Keywords that, when found in a normalized image filename, indicate a medical document.
-// PDFs are always medical_document regardless of filename.
-// Keep this list small, explicit, and easy to audit — no regex, no ML.
-const MEDICAL_FILENAME_KEYWORDS: readonly string[] = [
+// Two-tier keyword matching to reduce false positives from short tokens.
+//
+// SUBSTRING_KEYWORDS: long/domain-specific terms — safe to match anywhere in the normalized name.
+// TOKEN_EXACT_KEYWORDS: short abbreviations — must appear as a complete token (split on
+//   non-alphanumeric boundaries) to avoid matches inside unrelated words like "labrador".
+//   "ema" intentionally excluded from both: too short and noisy as a standalone token
+//   (common as a personal name / place). Files with EMA results will typically also
+//   contain other keywords (analiz, result, ttg, etc.).
+
+const SUBSTRING_KEYWORDS: readonly string[] = [
   // Latin / transliterated
-  "analiz", "analysis", "result", "results", "lab",
+  "analiz", "analysis", "result", "results",
   "biopsy", "doctor", "diagnosis", "conclusion", "report",
-  "test", "antibody", "iga", "igg", "ttg", "ema", "dgp",
-  "celiac", "blood", "panel", "profile",
+  "antibody", "celiac", "blood", "panel", "profile",
   // Cyrillic
   "анализ", "анализы", "результат", "лаборат", "биопси",
   "врач", "диагноз", "заключение", "отчет", "отчёт",
   "тест", "антител", "целиак", "кровь", "панел",
 ];
 
+const TOKEN_EXACT_KEYWORDS = new Set([
+  "lab", "test", "iga", "igg", "ttg", "dgp",
+]);
+
 // Pure deterministic classifier — no I/O, no content inspection.
 // PDFs → medical_document unconditionally.
-// Images → medical_document if filename (sans extension, lowercased) contains a keyword.
+// Images: substring check first, then token-exact check for short abbreviations.
 export function classifyAttachment(mimeType: string, fileName: string): AttachmentMode {
   if (mimeType === "application/pdf") return "medical_document";
 
   const normalizedName = fileName.toLowerCase().replace(/\.[^.]+$/, "");
-  for (const kw of MEDICAL_FILENAME_KEYWORDS) {
+
+  for (const kw of SUBSTRING_KEYWORDS) {
     if (normalizedName.includes(kw)) return "medical_document";
   }
+
+  const tokens = normalizedName.split(/[^a-zа-яё0-9]+/).filter(Boolean);
+  for (const token of tokens) {
+    if (TOKEN_EXACT_KEYWORDS.has(token)) return "medical_document";
+  }
+
   return "generic_attachment";
 }
 
