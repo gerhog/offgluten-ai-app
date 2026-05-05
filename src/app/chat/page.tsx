@@ -265,10 +265,11 @@ export default function ChatPage() {
 
       const data = await res.json();
 
-      // Clear attachment on all server-handled outcomes except temporary_error.
-      // On temporary_error the request may have not been processed; keep state for retry.
-      // On network error (catch below) also keep state.
-      if (data.status !== "temporary_error") {
+      // Clear attachment only on outcomes where the message was fully accepted and processed.
+      // Preserve on temporary_error, attachment_*, unknown failures, and network errors (catch
+      // below) — user should be able to retry without re-selecting the file.
+      // unauthenticated: cleared — session is dead; re-login starts a fresh session anyway.
+      if ((["answered", "limited", "trial_exhausted", "unauthenticated"] as string[]).includes(data.status as string)) {
         setAttachment(null);
       }
 
@@ -944,9 +945,6 @@ export default function ChatPage() {
                 {attachment.status === "error" && attachment.errorMsg && (
                   <div className="attach-error-msg">{attachment.errorMsg}</div>
                 )}
-                <div className="attach-hint">
-                  Фото упаковки, анализа или заключения врача · JPG, PNG, WEBP, PDF · до 5 МБ
-                </div>
               </div>
             )}
 
@@ -994,6 +992,10 @@ export default function ChatPage() {
                 </svg>
               </button>
             </form>
+
+            <div className="attach-hint">
+              Можно прикрепить анализ, исследование или заключение врача · JPG, PNG, WEBP, PDF · до 5 МБ
+            </div>
           </div>
 
         </div>
