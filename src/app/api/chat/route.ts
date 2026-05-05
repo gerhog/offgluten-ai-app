@@ -6,6 +6,9 @@ import {
   confirmAttachment,
   revertAttachmentToPending,
   generateAttachmentSignedUrl,
+  classifyAttachment,
+  persistAttachmentMode,
+  type AttachmentMode,
 } from "@/lib/chat/attachments";
 
 export const maxDuration = 60;
@@ -114,6 +117,7 @@ export async function POST(req: NextRequest) {
     mime_type: string;
     file_name: string;
     signed_url: string;
+    attachment_mode: AttachmentMode;
   } | null = null;
 
   if (attachmentId && attachmentMeta) {
@@ -124,7 +128,16 @@ export async function POST(req: NextRequest) {
 
     const signedUrl = await generateAttachmentSignedUrl(confirm.storagePath);
     if (!signedUrl) {
-      // Compensate: revert to pending so the user can retry without the attachment being stuck confirmed.
+      // Compensate: revert to pending so the user can retry.
+      await revertAttachmentToPending(attachmentId, access.profile.id);
+      return deny("attachment_unavailable", 500);
+    }
+
+    // Classify (pure, no I/O) then persist. Revert to pending if persist fails —
+    // avoids leaving a confirmed row without a mode.
+    const mode = classifyAttachment(attachmentMeta.mimeType, attachmentMeta.fileName);
+    const modeOk = await persistAttachmentMode(attachmentId, access.profile.id, mode);
+    if (!modeOk) {
       await revertAttachmentToPending(attachmentId, access.profile.id);
       return deny("attachment_unavailable", 500);
     }
@@ -134,6 +147,7 @@ export async function POST(req: NextRequest) {
       mime_type: attachmentMeta.mimeType,
       file_name: attachmentMeta.fileName,
       signed_url: signedUrl,
+      attachment_mode: mode,
     };
   }
 
@@ -158,7 +172,7 @@ export async function POST(req: NextRequest) {
     has_attachment: attachmentPayload !== null,
   };
   if (attachmentPayload) {
-    // attachment_mode is omitted here — classification is added in Step 4.
+    n8nPayload.attachment_mode = attachmentPayload.attachment_mode;
     n8nPayload.attachment = attachmentPayload;
   }
   if (sessionId) {

@@ -2,6 +2,61 @@ import { createServiceClient } from "@/lib/supabase/service";
 
 const BUCKET = "chat-attachments";
 
+// --- Classification ---
+
+export type AttachmentMode = "medical_document" | "generic_attachment";
+
+// Keywords that, when found in a normalized image filename, indicate a medical document.
+// PDFs are always medical_document regardless of filename.
+// Keep this list small, explicit, and easy to audit — no regex, no ML.
+const MEDICAL_FILENAME_KEYWORDS: readonly string[] = [
+  // Latin / transliterated
+  "analiz", "analysis", "result", "results", "lab",
+  "biopsy", "doctor", "diagnosis", "conclusion", "report",
+  "test", "antibody", "iga", "igg", "ttg", "ema", "dgp",
+  "celiac", "blood", "panel", "profile",
+  // Cyrillic
+  "анализ", "анализы", "результат", "лаборат", "биопси",
+  "врач", "диагноз", "заключение", "отчет", "отчёт",
+  "тест", "антител", "целиак", "кровь", "панел",
+];
+
+// Pure deterministic classifier — no I/O, no content inspection.
+// PDFs → medical_document unconditionally.
+// Images → medical_document if filename (sans extension, lowercased) contains a keyword.
+export function classifyAttachment(mimeType: string, fileName: string): AttachmentMode {
+  if (mimeType === "application/pdf") return "medical_document";
+
+  const normalizedName = fileName.toLowerCase().replace(/\.[^.]+$/, "");
+  for (const kw of MEDICAL_FILENAME_KEYWORDS) {
+    if (normalizedName.includes(kw)) return "medical_document";
+  }
+  return "generic_attachment";
+}
+
+// Persists attachment_mode to the already-confirmed row.
+// The .eq("status","confirmed") guard ensures we only update the row that was just confirmed,
+// never a pending or orphaned row.
+export async function persistAttachmentMode(
+  attachmentId: string,
+  userId: string,
+  mode: AttachmentMode
+): Promise<boolean> {
+  const service = createServiceClient();
+  const { error } = await service
+    .from("attachments")
+    .update({ attachment_mode: mode })
+    .eq("id", attachmentId)
+    .eq("user_id", userId)
+    .eq("status", "confirmed");
+
+  if (error) {
+    console.error("[attachments] persistAttachmentMode failed:", error.message);
+    return false;
+  }
+  return true;
+}
+
 // Short-lived URL for n8n processing. /api/chat has maxDuration=60 and n8n timeout=35s,
 // so 300s gives a comfortable buffer without leaving a long-lived window.
 const SIGNED_URL_TTL_SECONDS = 300;
