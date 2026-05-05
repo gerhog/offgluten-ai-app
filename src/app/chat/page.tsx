@@ -30,6 +30,16 @@ type MessageEntry =
   | { role: "system"; subtype: SystemSubtype; text: string }
   | { role: "trial_exhausted" };
 
+type AttachmentUIState = {
+  localId: string;       // guards against stale upload results overwriting a newer selection
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  status: "uploading" | "ready" | "error";
+  attachmentId?: string;
+  errorMsg?: string;
+};
+
 /* ─────────────────────────────────────────────────────────
    Constants
 ───────────────────────────────────────────────────────── */
@@ -53,6 +63,21 @@ const PRESETS = [
   { icon: "🏷️", iconBg: "#d4e6f1", q: "Какие продукты содержат скрытый глютен?", hint: "Состав и маркировка" },
   { icon: "📋", iconBg: "#ede4f5", q: "Какие льготы доступны в России?",         hint: "Поддержка и права" },
 ];
+
+const UPLOAD_ALLOWED_TYPES = new Set([
+  "image/jpeg", "image/png", "image/webp", "application/pdf",
+]);
+const UPLOAD_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
+function getExtLabel(mimeType: string): string {
+  const map: Record<string, string> = {
+    "application/pdf": "PDF",
+    "image/jpeg": "JPG",
+    "image/png": "PNG",
+    "image/webp": "WEBP",
+  };
+  return map[mimeType] ?? "FILE";
+}
 
 // Placeholder history — backend persistence is not yet implemented.
 // Replace with real data when conversation storage is added.
@@ -172,9 +197,11 @@ export default function ChatPage() {
   const [input, setInput]       = useState("");
   const [loading, setLoading]   = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [attachment, setAttachment] = useState<AttachmentUIState | null>(null);
 
-  const inputRef      = useRef<HTMLInputElement>(null);
+  const inputRef       = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
 
   const isExhausted = messages.some((m) => m.role === "trial_exhausted");
 
@@ -186,7 +213,7 @@ export default function ChatPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const text = input.trim();
-    if (!text || loading || isExhausted) return;
+    if (!text || loading || isExhausted || attachment?.status === "uploading") return;
     sendMessage(text);
   }
 
@@ -197,11 +224,14 @@ export default function ChatPage() {
   function handleNewChat() {
     setMessages([]);
     setInput("");
+    setAttachment(null);
     setSidebarOpen(false);
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
   async function sendMessage(text: string) {
+    // Capture attachment state now; only include if ready.
+    const attachmentToSend = attachment?.status === "ready" ? attachment : null;
     setInput("");
     setSidebarOpen(false);
     setMessages((prev) => [...prev, { role: "user", text }]);
@@ -217,14 +247,30 @@ export default function ChatPage() {
       .slice(-5)
       .map((m) => ({ role: m.role, text: m.text.slice(0, 500) }));
 
+    const body: Record<string, unknown> = {
+      message: text,
+      session_id: sessionId,
+      recent_turns: recentTurns,
+    };
+    if (attachmentToSend?.attachmentId) {
+      body.attachment_id = attachmentToSend.attachmentId;
+    }
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, session_id: sessionId, recent_turns: recentTurns }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
+
+      // Clear attachment on all server-handled outcomes except temporary_error.
+      // On temporary_error the request may have not been processed; keep state for retry.
+      // On network error (catch below) also keep state.
+      if (data.status !== "temporary_error") {
+        setAttachment(null);
+      }
 
       if (data.status === "answered") {
         setMessages((prev) => [...prev, { role: "assistant", text: data.answer || data.message || "" }]);
@@ -240,14 +286,69 @@ export default function ChatPage() {
         pushSystem("temporary_error", "Сервис временно недоступен. Пожалуйста, попробуйте через несколько секунд.");
       } else if (data.status === "unauthenticated") {
         pushSystem("unauthenticated", "Сессия истекла. Войдите снова, чтобы продолжить.");
+      } else if (typeof data.status === "string" && data.status.startsWith("attachment_")) {
+        pushSystem("temporary_error", "Не удалось прикрепить файл. Попробуйте загрузить снова.");
       } else {
         pushSystem("temporary_error", "Что-то пошло не так. Попробуйте ещё раз.");
       }
     } catch {
+      // Keep attachment state on network error — request may not have reached server.
       pushSystem("temporary_error", "Ошибка соединения. Попробуйте ещё раз.");
     } finally {
       setLoading(false);
       if (!isExhausted) inputRef.current?.focus();
+    }
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+
+    if (!UPLOAD_ALLOWED_TYPES.has(file.type)) {
+      setAttachment({
+        localId: crypto.randomUUID(),
+        fileName: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        status: "error",
+        errorMsg: "Формат не поддерживается. Разрешены: JPG, PNG, WEBP, PDF.",
+      });
+      return;
+    }
+    if (file.size > UPLOAD_MAX_BYTES) {
+      setAttachment({
+        localId: crypto.randomUUID(),
+        fileName: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        status: "error",
+        errorMsg: "Файл слишком большой. Максимум 5 МБ.",
+      });
+      return;
+    }
+
+    const localId = crypto.randomUUID();
+    setAttachment({ localId, fileName: file.name, mimeType: file.type, sizeBytes: file.size, status: "uploading" });
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/attachments/upload", { method: "POST", body: formData });
+      const data = await res.json();
+
+      setAttachment((prev) => {
+        if (!prev || prev.localId !== localId) return prev; // newer selection replaced this one
+        if (res.ok && data.attachment?.id) {
+          return { ...prev, status: "ready", attachmentId: data.attachment.id };
+        }
+        return { ...prev, status: "error", errorMsg: data.message ?? "Ошибка загрузки. Попробуйте ещё раз." };
+      });
+    } catch {
+      setAttachment((prev) => {
+        if (!prev || prev.localId !== localId) return prev;
+        return { ...prev, status: "error", errorMsg: "Ошибка соединения. Попробуйте ещё раз." };
+      });
     }
   }
 
@@ -620,6 +721,94 @@ export default function ChatPage() {
           .empty-heading { font-size: 19px; }
           .presets-grid { justify-content: flex-start; }
         }
+
+        /* ── Attachment chip ───────────────────────────── */
+        .attach-chip-wrap { margin-bottom: 10px; }
+        .attach-chip {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 9px 12px;
+          background: #fff;
+          border: 1.5px solid #e5e0d8;
+          border-radius: 10px;
+        }
+        .attach-ext {
+          flex-shrink: 0;
+          padding: 2px 7px;
+          border-radius: 5px;
+          background: #f2ede8;
+          font-size: 10.5px;
+          font-weight: 700;
+          color: #6b6762;
+          letter-spacing: 0.04em;
+        }
+        .attach-name {
+          flex: 1;
+          font-size: 13px;
+          color: #3d3a36;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-width: 0;
+        }
+        .attach-status {
+          flex-shrink: 0;
+          font-size: 12px;
+          white-space: nowrap;
+        }
+        .attach-status-uploading { color: #9a9590; }
+        .attach-status-ready     { color: #16a34a; }
+        .attach-status-error     { color: #dc2626; }
+        .attach-error-msg {
+          margin-top: 5px;
+          font-size: 12px;
+          color: #dc2626;
+        }
+        .attach-remove {
+          flex-shrink: 0;
+          width: 22px;
+          height: 22px;
+          border-radius: 5px;
+          border: none;
+          background: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #b0ada8;
+          font-size: 17px;
+          line-height: 1;
+          padding: 0;
+          transition: background 0.12s, color 0.12s;
+        }
+        .attach-remove:hover:not(:disabled) { background: #f2ede8; color: #1c1a18; }
+        .attach-remove:disabled { opacity: 0.35; cursor: not-allowed; }
+        .attach-hint {
+          margin-top: 7px;
+          font-size: 11.5px;
+          color: #b0ada8;
+          line-height: 1.5;
+        }
+
+        /* ── Paperclip button ─────────────────────────── */
+        .attach-btn {
+          flex-shrink: 0;
+          width: 44px;
+          height: 44px;
+          border-radius: 11px;
+          border: 1.5px solid #e0dbd4;
+          background: #fff;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #9a9590;
+          transition: border-color 0.15s, background 0.15s, color 0.15s;
+        }
+        .attach-btn:hover:not(:disabled) { border-color: #1c1a18; background: #f5f2ee; color: #1c1a18; }
+        .attach-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .attach-btn.active { border-color: #1c1a18; color: #1c1a18; }
       `}</style>
 
       <div className="chat-root">
@@ -730,7 +919,61 @@ export default function ChatPage() {
 
           {/* Input */}
           <div className="chat-input-wrap">
+
+            {/* Attachment chip — shown while file is selected/uploading/ready/error */}
+            {attachment && (
+              <div className="attach-chip-wrap">
+                <div className="attach-chip">
+                  <span className="attach-ext">{getExtLabel(attachment.mimeType)}</span>
+                  <span className="attach-name" title={attachment.fileName}>{attachment.fileName}</span>
+                  <span className={`attach-status attach-status-${attachment.status}`}>
+                    {attachment.status === "uploading" && "Загружается..."}
+                    {attachment.status === "ready"     && "✓ Готово"}
+                    {attachment.status === "error"     && "Ошибка"}
+                  </span>
+                  <button
+                    type="button"
+                    className="attach-remove"
+                    onClick={() => setAttachment(null)}
+                    disabled={loading}
+                    aria-label="Удалить вложение"
+                  >
+                    ×
+                  </button>
+                </div>
+                {attachment.status === "error" && attachment.errorMsg && (
+                  <div className="attach-error-msg">{attachment.errorMsg}</div>
+                )}
+                <div className="attach-hint">
+                  Фото упаковки, анализа или заключения врача · JPG, PNG, WEBP, PDF · до 5 МБ
+                </div>
+              </div>
+            )}
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              style={{ display: "none" }}
+              onChange={handleFileSelect}
+            />
+
             <form className="chat-input-inner" onSubmit={handleSubmit}>
+              {/* Paperclip button */}
+              <button
+                type="button"
+                className={`attach-btn${attachment && attachment.status !== "error" ? " active" : ""}`}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading || isExhausted}
+                aria-label="Прикрепить файл"
+                title="Прикрепить файл"
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M15.5 8.5L8.2 15.8C6.6 17.4 4 17.4 2.4 15.8C0.8 14.2 0.8 11.6 2.4 10L9.7 2.7C10.7 1.7 12.3 1.7 13.3 2.7C14.3 3.7 14.3 5.3 13.3 6.3L6.4 13.2C6 13.6 5.3 13.6 4.9 13.2C4.5 12.8 4.5 12.1 4.9 11.7L10.8 5.8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+
               <input
                 ref={inputRef}
                 className="chat-input"
@@ -743,7 +986,7 @@ export default function ChatPage() {
               <button
                 type="submit"
                 className="chat-send-btn"
-                disabled={loading || !input.trim() || isExhausted}
+                disabled={loading || !input.trim() || isExhausted || attachment?.status === "uploading"}
                 aria-label="Отправить"
               >
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
