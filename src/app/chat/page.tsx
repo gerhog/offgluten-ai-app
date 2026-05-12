@@ -212,9 +212,11 @@ export default function ChatPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading || isExhausted || attachment?.status === "uploading") return;
     const text = input.trim();
-    if (!text || loading || isExhausted || attachment?.status === "uploading") return;
-    sendMessage(text);
+    const hasReadyAttachment = attachment?.status === "ready";
+    if (!text && !hasReadyAttachment) return;
+    sendMessage(text || "Помоги разобрать вложение");
   }
 
   function pushSystem(subtype: SystemSubtype, text: string) {
@@ -984,7 +986,7 @@ export default function ChatPage() {
               <button
                 type="submit"
                 className="chat-send-btn"
-                disabled={loading || !input.trim() || isExhausted || attachment?.status === "uploading"}
+                disabled={loading || isExhausted || attachment?.status === "uploading" || (!input.trim() && attachment?.status !== "ready")}
                 aria-label="Отправить"
               >
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
