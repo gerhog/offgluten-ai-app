@@ -210,13 +210,17 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function trySubmit() {
     if (loading || isExhausted || attachment?.status === "uploading") return;
     const text = input.trim();
     const hasReadyAttachment = attachment?.status === "ready";
     if (!text && !hasReadyAttachment) return;
     sendMessage(text || "Помоги разобрать вложение");
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    trySubmit();
   }
 
   function pushSystem(subtype: SystemSubtype, text: string) {
@@ -979,6 +983,7 @@ export default function ChatPage() {
                 className="chat-input"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); trySubmit(); } }}
                 placeholder={isExhausted ? "Пробный период закончился" : "Спросите о целиакии или питании..."}
                 disabled={loading || isExhausted}
                 autoComplete="off"
