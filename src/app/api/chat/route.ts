@@ -6,7 +6,7 @@ import {
   confirmAttachment,
   revertAttachmentToPending,
   generateAttachmentSignedUrl,
-  classifyAttachment,
+  resolveAttachmentMode,
   persistAttachmentMode,
   type AttachmentMode,
 } from "@/lib/chat/attachments";
@@ -133,9 +133,10 @@ export async function POST(req: NextRequest) {
       return deny("attachment_unavailable", 500);
     }
 
-    // Classify (pure, no I/O) then persist. Revert to pending if persist fails —
-    // avoids leaving a confirmed row without a mode.
-    const mode = classifyAttachment(attachmentMeta.mimeType, attachmentMeta.fileName);
+    // Resolve neutral media-level mode (image | pdf), then persist.
+    // Semantic document-type routing happens in n8n after content inspection.
+    // Revert to pending if persist fails — avoids a confirmed row without a mode.
+    const mode = resolveAttachmentMode(attachmentMeta.mimeType);
     const modeOk = await persistAttachmentMode(attachmentId, access.profile.id, mode);
     if (!modeOk) {
       await revertAttachmentToPending(attachmentId, access.profile.id);
